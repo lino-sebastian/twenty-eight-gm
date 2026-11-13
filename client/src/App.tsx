@@ -3,6 +3,7 @@ import type { StatePayload } from '../../shared/protocol';
 import { Lobby } from './Lobby';
 import { Table } from './Table';
 import { playerToken, saveName, savedName, socket } from './socket';
+import { useVoice } from './voice';
 
 function codeFromUrl(): string | null {
   const m = window.location.pathname.match(/^\/r\/([A-Za-z0-9]{4,8})\/?$/);
@@ -20,12 +21,16 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const roomRef = useRef<string | null>(null);
+  const voice = useVoice((m) => showErrorRef.current(m));
+  const showErrorRef = useRef<(m: string) => void>(() => undefined);
   roomRef.current = roomCode;
 
   const showError = useCallback((msg: string) => {
     setError(msg);
     window.setTimeout(() => setError((e) => (e === msg ? null : e)), 4000);
   }, []);
+
+  showErrorRef.current = showError;
 
   const join = useCallback(
     (code: string, playerName: string) => {
@@ -92,6 +97,7 @@ export function App() {
   };
 
   const leave = () => {
+    if (voice.status !== 'off') voice.leave();
     socket.emit('leaveRoom');
     setRoomCode(null);
     setState(null);
@@ -120,9 +126,9 @@ export function App() {
           invited={!!codeFromUrl()}
         />
       ) : state.room.status === 'lobby' || !state.game ? (
-        <Lobby state={state} onError={showError} onLeave={leave} />
+        <Lobby state={state} onError={showError} onLeave={leave} voice={voice} />
       ) : (
-        <Table state={state} onError={showError} onLeave={leave} />
+        <Table state={state} onError={showError} onLeave={leave} voice={voice} />
       )}
     </div>
   );

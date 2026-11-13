@@ -1,15 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { SUIT_NAMES, SUIT_SYMBOLS, sortHand } from '../../shared/cards';
 import type { Action, CompletedTrick, PlayedCard, PlayerView, Seat } from '../../shared/game';
 import type { StatePayload } from '../../shared/protocol';
 import { CardBack, CardFace } from './cards';
 import { ack } from './Lobby';
 import { socket } from './socket';
+import { VoiceControls, useVoice } from './voice';
 
 type Pos = 'bottom' | 'right' | 'top' | 'left';
 const POSITIONS: Pos[] = ['bottom', 'right', 'top', 'left'];
 
-export function Table({ state, onError, onLeave }: { state: StatePayload; onError: (m: string) => void; onLeave: () => void }) {
+/** How long a finished trick stays on the table (the server waits a little longer before bots lead). */
+const TRICK_HOLD_MS = 2_700;
+const TRICK_COLLECT_MS = 600;
+
+export function Table({
+  state,
+  onError,
+  onLeave,
+  voice,
+}: {
+  state: StatePayload;
+  onError: (m: string) => void;
+  onLeave: () => void;
+  voice: ReturnType<typeof useVoice>;
+}) {
   const g = state.game!;
   const { room, you } = state;
   const me = you.seat ?? 0;
@@ -22,32 +37,46 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
     return `Seat ${s + 1}`;
   };
   const myTeam = (me % 2) as 0 | 1;
-  const teamLabel = (t: number) => (you.seat === null ? (t === 0 ? 'Team A' : 'Team B') : t === myTeam ? 'Us' : 'Them');
-  /** Team name for use inside a sentence. */
-  const teamName = (t: number) => (you.seat === null ? (t === 0 ? 'Team A' : 'Team B') : t === myTeam ? 'Your team' : 'The other team');
+  const teamName = (t: number) => room.teamNames[t];
 
-  const send = (a: Action) => socket.emit('action', a, ack(onError));
-  const [selected, setSelected] = useState<string | null>(null);
-  const shownTrick = useShownTrick(g);
-  const myTurn = you.seat !== null && g.turn === you.seat;
-
-  useEffect(() => setSelected(null), [g.phase]);
-
-  const onCardClick = (id: string) => {
-    if (g.phase === 'chooseTrump' || g.phase === 'chooseTrump2') {
-      setSelected(id);
-    } else if (g.phase === 'playing') {
-      send({ type: 'play', cardId: id });
-    }
+  // Waiting for the server to accept a move: block double clicks and hide the card being played.
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => setPending(null), [state]);
+  const send = (a: Action, key: string) => {
+    setPending(key);
+    socket.emit('action', a, (res) => {
+      if (!res.ok) {
+        setPending(null);
+        onError(res.error);
+      }
+    });
   };
 
+  const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => setSelected(null), [g.phase]);
+
+  const shown = useShownTrick(g);
+  const myTurn = you.seat !== null && g.turn === you.seat && !shown.holding;
   const choosingTrump = myTurn && (g.phase === 'chooseTrump' || g.phase === 'chooseTrump2');
+  const playing = myTurn && g.phase === 'playing' && !pending;
+
+  const onCardClick = (id: string) => {
+    if (choosingTrump) setSelected(id);
+    else if (playing) send({ type: 'play', cardId: id }, id);
+  };
+
   const hand = sortHand(g.myHand);
+  const inBidding = g.phase === 'bidding1' || g.phase === 'bidding2' || g.phase.startsWith('choose');
   const lastBid = (s: Seat) => {
+    if (!inBidding) return null;
     const bids = g.bids.filter((b) => b.seat === s);
     const b = bids[bids.length - 1];
-    if (!b || !(g.phase === 'bidding1' || g.phase === 'bidding2' || g.phase.startsWith('choose'))) return null;
+    if (!b) return null;
     return b.amount === null ? 'Pass' : String(b.amount);
+  };
+  const inVoice = (s: Seat) => {
+    const info = room.seats[s];
+    return info.kind === 'human' && room.voice.includes(info.playerId);
   };
 
   return (
@@ -55,8 +84,11 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
       <header className="scorebar">
         <div className="scores">
           {[myTeam, 1 - myTeam].map((t) => (
-            <div key={t} className={`score team-${t}`}>
-              <span className="muted">{teamLabel(t)}</span>
+            <div key={t} className={`score team-${t}`} title={t === myTeam && you.seat !== null ? 'Your team' : undefined}>
+              <span className="score-name">
+                {teamName(t)}
+                {t === myTeam && you.seat !== null && <span className="you-dot" aria-label="your team" />}
+              </span>
               <strong>{g.scores[t]}</strong>
             </div>
           ))}
@@ -72,8 +104,10 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
           <TrumpBadge g={g} seatName={seatName} />
         </div>
         <div className="row">
+          <VoiceControls voice={voice} count={room.voice.length} />
           {you.isHost && (
             <button
+              type="button"
               className="small-btn"
               onClick={() => {
                 if (window.confirm('End this game and return everyone to the lobby?')) socket.emit('endGame', ack(onError));
@@ -82,7 +116,7 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
               End game
             </button>
           )}
-          <button className="small-btn" onClick={onLeave}>
+          <button type="button" className="small-btn" onClick={onLeave}>
             Leave
           </button>
         </div>
@@ -97,24 +131,29 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
               pos={posOf(s)}
               name={seatName(s)}
               count={g.handCounts[s]}
-              active={g.turn === s && g.phase !== 'handOver' && g.phase !== 'matchOver'}
+              active={g.turn === s && !shown.holding && g.phase !== 'handOver' && g.phase !== 'matchOver'}
               dealer={g.dealer === s}
               bid={lastBid(s)}
               hiddenTrump={g.hasHiddenTrump && g.bidder === s}
               status={statusOf(room.seats[s])}
               team={s % 2}
+              voice={inVoice(s)}
             />
           ))}
 
         <div className="center">
-          <Trick trick={shownTrick} posOf={posOf} />
+          <Trick shown={shown} posOf={posOf} />
+          {shown.holding && shown.winner !== null && (
+            <div className={`trick-winner team-${shown.winner % 2}`}>
+              {seatName(shown.winner)} {seatName(shown.winner) === 'You' ? 'win' : 'wins'} the trick
+            </div>
+          )}
           <div className="center-info">
-            <span className={`team-${myTeam}`}>
-              {teamLabel(myTeam)}: {g.pointsWon[myTeam]} pts · {g.tricksWon[myTeam]} tricks
-            </span>
-            <span className={`team-${1 - myTeam}`}>
-              {teamLabel(1 - myTeam)}: {g.pointsWon[1 - myTeam]} pts · {g.tricksWon[1 - myTeam]} tricks
-            </span>
+            {[myTeam, 1 - myTeam].map((t) => (
+              <span key={t} className={`team-${t}`}>
+                {teamName(t)}: {g.pointsWon[t]} pts · {g.tricksWon[t]} tricks
+              </span>
+            ))}
           </div>
         </div>
       </div>
@@ -122,40 +161,50 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
       {g.notice && <div className="notice">{g.notice}</div>}
 
       <section className="me">
-        <div className="prompt">
-          <Prompt g={g} myTurn={myTurn} seatName={seatName} spectating={you.seat === null} />
+        <div className="prompt" aria-live="polite">
+          <Prompt g={g} myTurn={myTurn} holding={shown.holding} seatName={seatName} spectating={you.seat === null} />
         </div>
 
-        {myTurn && (g.phase === 'bidding1' || g.phase === 'bidding2') && <BidPanel g={g} send={send} />}
+        {myTurn && (g.phase === 'bidding1' || g.phase === 'bidding2') && (
+          <BidPanel g={g} pending={!!pending} send={send} />
+        )}
 
         {choosingTrump && (
           <div className="actions">
-            <button className="primary" disabled={!selected} onClick={() => selected && send({ type: 'chooseTrump', cardId: selected })}>
-              {selected ? `Place ${selected.slice(0, -1)}${SUIT_SYMBOLS[selected.slice(-1) as 'S']} face down as trump` : 'Pick a card above'}
+            <button
+              type="button"
+              className="primary"
+              disabled={!selected || !!pending}
+              onClick={() => selected && send({ type: 'chooseTrump', cardId: selected }, 'trump')}
+            >
+              {selected ? `Place ${selected.slice(0, -1)}${SUIT_SYMBOLS[selected.slice(-1) as 'S']} face down as trump` : 'Pick a card below'}
             </button>
           </div>
         )}
 
-        {myTurn && g.phase === 'playing' && g.canCallTrump && (
+        {playing && g.canCallTrump && (
           <div className="actions">
-            <button className="primary" onClick={() => send({ type: 'callTrump' })}>
+            <button type="button" className="primary" onClick={() => send({ type: 'callTrump' }, 'call')}>
               {g.bidder === you.seat ? 'Reveal trump and play one' : 'Ask for trump'}
             </button>
           </div>
         )}
 
         {you.seat !== null && (
-          <div className="hand">
-            {hand.map((c) => {
-              const playable = (myTurn && g.phase === 'playing' && g.legalCardIds.includes(c.id)) || choosingTrump;
+          <div className={`hand${playing || choosingTrump ? ' my-turn' : ''}`}>
+            {hand.map((c, i) => {
+              const legal = playing && g.legalCardIds.includes(c.id);
+              const playable = legal || choosingTrump;
               return (
                 <CardFace
                   key={c.id}
                   card={c}
                   playable={playable}
-                  dim={myTurn && g.phase === 'playing' && !playable}
+                  dim={playing && !legal}
                   selected={selected === c.id}
+                  className={pending === c.id ? 'leaving' : undefined}
                   onClick={() => onCardClick(c.id)}
+                  style={{ '--i': i, '--n': hand.length } as React.CSSProperties}
                 />
               );
             })}
@@ -164,8 +213,8 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
                 <CardFace
                   card={g.trumpCard}
                   small
-                  playable={myTurn && g.legalCardIds.includes(g.trumpCard.id)}
-                  onClick={myTurn && g.legalCardIds.includes(g.trumpCard.id) ? () => send({ type: 'play', cardId: g.trumpCard!.id }) : undefined}
+                  playable={playing && g.legalCardIds.includes(g.trumpCard.id)}
+                  onClick={() => playing && send({ type: 'play', cardId: g.trumpCard!.id }, g.trumpCard!.id)}
                 />
                 <span className="muted small">Your face-down trump</span>
               </div>
@@ -174,8 +223,17 @@ export function Table({ state, onError, onLeave }: { state: StatePayload; onErro
         )}
       </section>
 
-      {(g.phase === 'handOver' || g.phase === 'matchOver') && g.result && (
-        <ResultOverlay g={g} seatName={seatName} teamLabel={teamLabel} teamName={teamName} myTeam={myTeam} isHost={you.isHost} seated={you.seat !== null} onError={onError} />
+      {(g.phase === 'handOver' || g.phase === 'matchOver') && g.result && !shown.holding && (
+        <Celebration
+          g={g}
+          seatName={seatName}
+          teamName={teamName}
+          myTeam={you.seat === null ? null : myTeam}
+          nextHandAt={room.nextHandAt}
+          isHost={you.isHost}
+          seated={you.seat !== null}
+          onError={onError}
+        />
       )}
     </main>
   );
@@ -188,29 +246,53 @@ function statusOf(info: StatePayload['room']['seats'][number]): string | null {
   return null;
 }
 
-/** Keep showing a completed trick for a moment so everyone sees who won it. */
-function useShownTrick(g: PlayerView): { cards: PlayedCard[]; winner: Seat | null } {
-  const [hold, setHold] = useState<CompletedTrick | null>(null);
-  const count = g.tricksWon[0] + g.tricksWon[1];
-  const prev = useRef(count);
-  useEffect(() => {
-    if (count > prev.current && g.lastTrick) {
-      setHold(g.lastTrick);
-      const t = window.setTimeout(() => setHold(null), 1500);
-      prev.current = count;
-      return () => window.clearTimeout(t);
-    }
-    prev.current = count;
-  }, [count, g.lastTrick]);
-  if (g.trick.length > 0 || !hold) return { cards: g.trick, winner: null };
-  return { cards: hold.cards, winner: hold.winner };
+interface ShownTrick {
+  cards: PlayedCard[];
+  winner: Seat | null;
+  holding: boolean;
+  collecting: boolean;
 }
 
-function Trick({ trick, posOf }: { trick: { cards: PlayedCard[]; winner: Seat | null }; posOf: (s: Seat) => Pos }) {
+/** Keep a completed trick on the table for a few seconds so everyone sees who won it. */
+function useShownTrick(g: PlayerView): ShownTrick {
+  const [hold, setHold] = useState<{ trick: CompletedTrick; collecting: boolean } | null>(null);
+  const count = g.tricksWon[0] + g.tricksWon[1];
+  const prev = useRef(count);
+  const lastTrick = useRef(g.lastTrick);
+  lastTrick.current = g.lastTrick;
+  const timers = useRef<number[]>([]);
+  const clearTimers = () => {
+    timers.current.forEach((t) => window.clearTimeout(t));
+    timers.current = [];
+  };
+  // Only a change in the number of finished tricks starts or stops the hold. Other state
+  // updates (which arrive often) must not reset the timers.
+  useEffect(() => {
+    const grew = count > prev.current;
+    prev.current = count;
+    clearTimers();
+    const trick = lastTrick.current;
+    if (!grew || !trick) {
+      setHold(null);
+      return;
+    }
+    setHold({ trick, collecting: false });
+    timers.current.push(
+      window.setTimeout(() => setHold({ trick, collecting: true }), TRICK_HOLD_MS - TRICK_COLLECT_MS),
+      window.setTimeout(() => setHold(null), TRICK_HOLD_MS),
+    );
+  }, [count, g.handNumber]);
+  useEffect(() => clearTimers, []);
+  // A new card on the table means play has moved on.
+  if (!hold || g.trick.length > 0) return { cards: g.trick, winner: null, holding: false, collecting: false };
+  return { cards: hold.trick.cards, winner: hold.trick.winner, holding: true, collecting: hold.collecting };
+}
+
+function Trick({ shown, posOf }: { shown: ShownTrick; posOf: (s: Seat) => Pos }) {
   return (
-    <div className="trick">
-      {trick.cards.map((p) => (
-        <div key={p.card.id} className={`trick-card at-${posOf(p.seat)}${trick.winner === p.seat ? ' winner' : ''}`}>
+    <div className={`trick${shown.collecting && shown.winner !== null ? ` collect-${posOf(shown.winner)}` : ''}`}>
+      {shown.cards.map((p) => (
+        <div key={p.card.id} className={`trick-card at-${posOf(p.seat)}${shown.winner === p.seat ? ' winner' : ''}`}>
           <CardFace card={p.card} small />
           {p.countsAsTrump && <span className="trump-mark">trump</span>}
         </div>
@@ -229,12 +311,22 @@ function Opponent(props: {
   hiddenTrump: boolean;
   status: string | null;
   team: number;
+  voice: boolean;
 }) {
   return (
     <div className={`opponent at-${props.pos}${props.active ? ' active' : ''}`}>
       <div className={`opp-name team-${props.team}`}>
         {props.name}
-        {props.dealer && <span className="tag" title="Dealer">D</span>}
+        {props.dealer && (
+          <span className="tag" title="Dealer">
+            D
+          </span>
+        )}
+        {props.voice && (
+          <span className="tag voice" title="In voice chat">
+            🎤
+          </span>
+        )}
       </div>
       {props.status && <div className="muted small">{props.status}</div>}
       <div className="opp-cards">
@@ -259,13 +351,30 @@ function TrumpBadge({ g, seatName }: { g: PlayerView; seatName: (s: Seat) => str
   return null;
 }
 
-function Prompt({ g, myTurn, seatName, spectating }: { g: PlayerView; myTurn: boolean; seatName: (s: Seat) => string; spectating: boolean }) {
-  const who = seatName(g.turn);
+function Prompt({
+  g,
+  myTurn,
+  holding,
+  seatName,
+  spectating,
+}: {
+  g: PlayerView;
+  myTurn: boolean;
+  holding: boolean;
+  seatName: (s: Seat) => string;
+  spectating: boolean;
+}) {
   if (g.phase === 'handOver' || g.phase === 'matchOver') return null;
+  if (holding) return <span className="muted">Collecting the trick…</span>;
+  const who = seatName(g.turn);
   if (!myTurn) {
     const verb =
       g.phase === 'bidding1' || g.phase === 'bidding2' ? 'to bid' : g.phase.startsWith('choose') ? 'to choose trump' : 'to play';
-    return <span className="muted">{spectating ? 'Watching. ' : ''}Waiting for {who} {verb}…</span>;
+    return (
+      <span className="muted">
+        {spectating ? 'Watching. ' : ''}Waiting for {who} {verb}…
+      </span>
+    );
   }
   switch (g.phase) {
     case 'bidding1':
@@ -283,56 +392,125 @@ function Prompt({ g, myTurn, seatName, spectating }: { g: PlayerView; myTurn: bo
   }
 }
 
-function BidPanel({ g, send }: { g: PlayerView; send: (a: Action) => void }) {
+function BidPanel({ g, pending, send }: { g: PlayerView; pending: boolean; send: (a: Action, key: string) => void }) {
   const min = g.minBid;
   const options = min === null ? [] : Array.from({ length: 28 - min + 1 }, (_, i) => min + i);
   return (
     <div className="bid-panel">
       <div className="bid-grid">
         {options.map((n) => (
-          <button key={n} className="bid-btn" onClick={() => send({ type: 'bid', amount: n })}>
+          <button type="button" key={n} className="bid-btn" disabled={pending} onClick={() => send({ type: 'bid', amount: n }, 'bid')}>
             {n}
           </button>
         ))}
       </div>
       <div className="actions">
-        {g.canPass && <button onClick={() => send({ type: 'pass' })}>Pass</button>}
-        {g.canRequestRedeal && <button onClick={() => send({ type: 'requestRedeal' })}>No points: redeal</button>}
+        {g.canPass && (
+          <button type="button" disabled={pending} onClick={() => send({ type: 'pass' }, 'pass')}>
+            Pass
+          </button>
+        )}
+        {g.canRequestRedeal && (
+          <button type="button" disabled={pending} onClick={() => send({ type: 'requestRedeal' }, 'redeal')}>
+            No points: redeal
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-function ResultOverlay(props: {
+function useCountdown(until: number | null) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!until) return;
+    const t = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(t);
+  }, [until]);
+  return until ? Math.max(0, Math.ceil((until - now) / 1000)) : null;
+}
+
+const CONFETTI_COLORS = ['#f2c14e', '#ff6b6b', '#4dabf7', '#69db7c', '#e599f7', '#ffffff'];
+
+function Confetti({ count }: { count: number }) {
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        left: Math.random() * 100,
+        delay: Math.random() * 0.8,
+        duration: 2.2 + Math.random() * 1.6,
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        rotate: Math.random() * 360,
+        size: 6 + Math.random() * 6,
+      })),
+    [count],
+  );
+  return (
+    <div className="confetti" aria-hidden>
+      {pieces.map((p, i) => (
+        <span
+          key={i}
+          style={{
+            left: `${p.left}%`,
+            background: p.color,
+            width: p.size,
+            height: p.size * 0.45,
+            animationDelay: `${p.delay}s`,
+            animationDuration: `${p.duration}s`,
+            transform: `rotate(${p.rotate}deg)`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Celebration(props: {
   g: PlayerView;
   seatName: (s: Seat) => string;
-  teamLabel: (t: number) => string;
   teamName: (t: number) => string;
-  myTeam: number;
+  myTeam: number | null;
+  nextHandAt: number | null;
   isHost: boolean;
   seated: boolean;
   onError: (m: string) => void;
 }) {
-  const { g, seatName, teamLabel, teamName, myTeam } = props;
+  const { g, seatName, teamName, myTeam } = props;
   const r = g.result!;
   const bidTeam = r.bidder % 2;
+  const handWinner = r.success ? bidTeam : 1 - bidTeam;
   const over = g.phase === 'matchOver';
+  const seconds = useCountdown(over ? null : props.nextHandAt);
+  const weWon = myTeam === null || (over ? g.winner === myTeam : handWinner === myTeam);
+  const order = myTeam === null ? [0, 1] : [myTeam, 1 - myTeam];
   return (
     <div className="overlay">
-      <div className="result panel">
-        {over ? <h2>{teamName(g.winner!)} won the match!</h2> : <h2>Hand {r.handNumber} result</h2>}
+      {weWon && <Confetti count={over ? 120 : 60} />}
+      <div className={`result panel team-${over ? g.winner : handWinner}${weWon ? ' won' : ''}`}>
+        <div className="result-emoji" aria-hidden>
+          {over ? '🏆' : weWon ? '🎉' : '👏'}
+        </div>
+        <h2 className="result-title">
+          {over ? `${teamName(g.winner!)} win the match!` : `${teamName(handWinner)} win the hand!`}
+        </h2>
         <p>
-          {seatName(r.bidder)} bid <strong>{r.bid}</strong> with {SUIT_NAMES[r.trumpSuit]} {SUIT_SYMBOLS[r.trumpSuit]} as trump.
-        </p>
-        <p>
-          {teamName(bidTeam)} took <strong>{r.points[bidTeam]}</strong> points, so the bid {r.success ? 'was made' : 'failed'}.
+          {seatName(r.bidder)} bid <strong>{r.bid}</strong> with {SUIT_NAMES[r.trumpSuit]} {SUIT_SYMBOLS[r.trumpSuit]} as trump, and{' '}
+          {teamName(bidTeam)} took <strong>{r.points[bidTeam]}</strong> points. The bid {r.success ? 'was made' : 'failed'}.
         </p>
         <table className="result-table">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th>Card points</th>
+              <th>This hand</th>
+              <th>Total</th>
+            </tr>
+          </thead>
           <tbody>
-            {[myTeam, 1 - myTeam].map((t) => (
+            {order.map((t) => (
               <tr key={t} className={`team-${t}`}>
-                <td>{teamLabel(t)}</td>
-                <td>{r.points[t]} pts</td>
+                <td>{teamName(t)}</td>
+                <td>{r.points[t]}</td>
                 <td>{r.delta[t] > 0 ? `+${r.delta[t]}` : r.delta[t]}</td>
                 <td>
                   <strong>{g.scores[t]}</strong>
@@ -342,14 +520,14 @@ function ResultOverlay(props: {
           </tbody>
         </table>
         {!over && props.seated && (
-          <button className="primary" onClick={() => socket.emit('action', { type: 'nextHand' }, ack(props.onError))}>
-            Next hand
+          <button type="button" className="primary" onClick={() => socket.emit('action', { type: 'nextHand' }, ack(props.onError))}>
+            Next hand{seconds !== null ? ` (${seconds})` : ''}
           </button>
         )}
-        {!over && <p className="muted small">The next hand starts by itself in a few seconds.</p>}
+        {!over && !props.seated && seconds !== null && <p className="muted small">Next hand in {seconds}s</p>}
         {over &&
           (props.isHost ? (
-            <button className="primary" onClick={() => socket.emit('endGame', ack(props.onError))}>
+            <button type="button" className="primary" onClick={() => socket.emit('endGame', ack(props.onError))}>
               Back to lobby
             </button>
           ) : (

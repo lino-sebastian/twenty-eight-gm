@@ -26,7 +26,10 @@ if (existsSync(dist)) {
   app.get(/^\/(?!socket\.io).*/, (_req, res) => res.sendFile(path.join(dist, 'index.html')));
 }
 
-const rooms = new RoomManager((socketId, payload) => io.to(socketId).emit('state', payload));
+const rooms = new RoomManager({
+  state: (socketId, payload) => io.to(socketId).emit('state', payload),
+  voicePeerLeft: (socketId, peer) => io.to(socketId).emit('voicePeerLeft', { socketId: peer }),
+});
 
 const isSeat = (s: unknown): s is Seat => s === 0 || s === 1 || s === 2 || s === 3;
 
@@ -86,6 +89,19 @@ io.on('connection', (socket) => {
       rooms.action(socket.id, p);
     }),
   );
+  socket.on('setTeamName', (p, ack) =>
+    handle(ack, () => {
+      if ((p?.team !== 0 && p?.team !== 1) || typeof p.name !== 'string') throw new RoomError('Bad team name.');
+      rooms.setTeamName(socket.id, p.team, p.name);
+    }),
+  );
+  socket.on('voiceJoin', (ack) => handle(ack, () => ({ peers: rooms.voiceJoin(socket.id) })));
+  socket.on('voiceLeave', () => rooms.voiceLeave(socket.id));
+  socket.on('voiceSignal', (p) => {
+    if (!p || typeof p.to !== 'string' || !p.signal) return;
+    if (!rooms.canSignal(socket.id, p.to)) return;
+    io.to(p.to).emit('voiceSignal', { from: socket.id, signal: p.signal });
+  });
   socket.on('disconnect', () => rooms.disconnect(socket.id));
 });
 

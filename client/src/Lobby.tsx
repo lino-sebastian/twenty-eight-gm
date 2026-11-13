@@ -2,8 +2,7 @@ import { useState } from 'react';
 import type { Seat } from '../../shared/game';
 import type { StatePayload } from '../../shared/protocol';
 import { socket } from './socket';
-
-const TEAM_NAMES = ['Team A', 'Team B'];
+import { VoiceControls, useVoice } from './voice';
 
 export function ack(onError: (m: string) => void) {
   return (res: { ok: boolean; error?: string }) => {
@@ -11,24 +10,48 @@ export function ack(onError: (m: string) => void) {
   };
 }
 
-export function Lobby({ state, onError, onLeave }: { state: StatePayload; onError: (m: string) => void; onLeave: () => void }) {
+export function Lobby({
+  state,
+  onError,
+  onLeave,
+  voice,
+}: {
+  state: StatePayload;
+  onError: (m: string) => void;
+  onLeave: () => void;
+  voice: ReturnType<typeof useVoice>;
+}) {
   const { room, you } = state;
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'link' | 'code' | null>(null);
+  const canShare = typeof navigator.share === 'function';
   const link = `${window.location.origin}/r/${room.code}`;
   const full = room.seats.every((s) => s.kind !== 'empty');
   const watchers = room.players.filter((p) => p.seat === null);
 
-  const copy = async () => {
+  const copy = async (what: 'link' | 'code') => {
+    const text = what === 'link' ? link : room.code;
     try {
-      if (navigator.share && /Mobi|Android/i.test(navigator.userAgent)) {
-        await navigator.share({ title: '28 Card Game', text: `Join my 28 game. Room code ${room.code}`, url: link });
-      } else {
-        await navigator.clipboard.writeText(link);
-        setCopied(true);
-        window.setTimeout(() => setCopied(false), 2000);
-      }
+      await navigator.clipboard.writeText(text);
     } catch {
-      /* user cancelled share */
+      // Older browsers or plain-http pages: fall back to a hidden text box.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+    }
+    setCopied(what);
+    window.setTimeout(() => setCopied((c) => (c === what ? null : c)), 2000);
+  };
+
+  const share = async () => {
+    try {
+      await navigator.share({ title: '28 Card Game', text: `Join my 28 game. Room code ${room.code}`, url: link });
+    } catch {
+      /* cancelled */
     }
   };
 
@@ -63,6 +86,7 @@ export function Lobby({ state, onError, onLeave }: { state: StatePayload; onErro
               {s.name}
               {mine && ' (you)'}
               {room.hostId === s.playerId && <span className="tag">host</span>}
+              {room.voice.includes(s.playerId) && <span className="tag voice" title="In voice chat">🎤</span>}
               {!s.connected && <span className="tag warn">offline</span>}
             </div>
             <div className="seat-actions">
@@ -83,21 +107,39 @@ export function Lobby({ state, onError, onLeave }: { state: StatePayload; onErro
           <div className="room-code">{room.code}</div>
         </div>
         <div className="row">
-          <button className="primary" onClick={copy}>
-            {copied ? 'Link copied' : 'Invite players'}
-          </button>
+          <VoiceControls voice={voice} count={room.voice.length} />
           <button onClick={onLeave}>Leave</button>
         </div>
       </header>
-      <p className="muted small">
-        Share this link: <code>{link}</code>
-      </p>
+
+      <section className="panel invite">
+        <h2>Invite players</h2>
+        <div className="invite-row">
+          <code className="invite-link">{link}</code>
+          <button type="button" className="primary" onClick={() => copy('link')}>
+            {copied === 'link' ? '✓ Copied' : 'Copy link'}
+          </button>
+          <button type="button" onClick={() => copy('code')}>
+            {copied === 'code' ? '✓ Copied' : 'Copy code'}
+          </button>
+          {canShare && (
+            <button type="button" onClick={share}>
+              Share…
+            </button>
+          )}
+        </div>
+      </section>
 
       <div className="teams">
         {[0, 1].map((t) => (
-          <section key={t} className="team">
-            <h2>{TEAM_NAMES[t]}</h2>
-            <p className="muted small">Partners sit opposite each other.</p>
+          <section key={t} className={`team team-${t}`}>
+            <TeamName
+              team={t as 0 | 1}
+              name={room.teamNames[t]}
+              editable={you.isHost || (you.seat !== null && you.seat % 2 === t)}
+              onError={onError}
+            />
+            <p className="muted small">Partners sit opposite each other.{(you.isHost || (you.seat !== null && you.seat % 2 === t)) && " Tap the name to rename the team."}</p>
             {([t, t + 2] as Seat[]).map(seatCard)}
           </section>
         ))}
@@ -155,5 +197,30 @@ export function Lobby({ state, onError, onLeave }: { state: StatePayload; onErro
         <p className="muted center">Waiting for the host to start the game…</p>
       )}
     </main>
+  );
+}
+
+function TeamName({ team, name, editable, onError }: { team: 0 | 1; name: string; editable: boolean; onError: (m: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const save = () => {
+    if (draft !== null && draft.trim() && draft.trim() !== name) socket.emit('setTeamName', { team, name: draft }, ack(onError));
+    setDraft(null);
+  };
+  if (!editable) return <h2 className="team-title">{name}</h2>;
+  return (
+    <input
+      className="team-title-input"
+      aria-label={`Name of team ${team + 1}`}
+      value={draft ?? name}
+      maxLength={24}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') setDraft(null);
+      }}
+      title="Click to rename your team"
+    />
   );
 }

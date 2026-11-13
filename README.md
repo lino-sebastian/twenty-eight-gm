@@ -19,6 +19,8 @@ Open http://localhost:5173 and create a room.
 
 **Playing with phones on the same Wi-Fi:** `npm run dev` prints a `Network:` address such as `http://192.168.1.20:5173`. Open that address on the other devices, or share the room code.
 
+**Voice chat on other devices:** browsers only allow the microphone on `localhost` or on HTTPS pages. To talk from phones or other computers on your Wi-Fi, run `npm run dev:https` instead and open the `https://…:5173` Network address. The certificate is self-signed, so each device shows a warning the first time; choose to continue.
+
 ### Production build
 
 ```bash
@@ -54,7 +56,15 @@ npm run typecheck
   | 25 to 28 | +3 | +4 |
 
   First team to the target (default 6 game points) wins the match.
+- Card art: Adrian Kennard's classic playing card designs (public domain, CC0), via the `@letele/playing-cards` package.
 - Not included, by choice: pair (K+Q of trump), double/redouble, Thani, Cot. An optional +1 point for the last trick is a room setting.
+
+## Room features
+
+- **Invite:** copy the link, copy just the room code, or use your phone's share sheet.
+- **Team names:** tap a team name in the lobby to rename it. The host can rename both teams; players can rename their own.
+- **Voice chat:** press **Join voice** in the lobby or at the table, then mute or leave whenever you like. Voice goes directly between browsers (WebRTC); the server only helps them connect. Players on very strict networks may not be able to connect without a TURN relay server.
+- **Pacing:** each finished trick stays on the table for about 3 seconds and slides to the winner. After each hand the result and a celebration show for 25 seconds, or until someone presses **Next hand**.
 
 ## How rooms work
 

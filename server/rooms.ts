@@ -12,14 +12,14 @@ import {
   newMatch,
   viewFor,
 } from '../shared/game.js';
-import type { RoomInfo, SeatInfo, StatePayload } from '../shared/protocol.js';
+import type { RoomInfo, SeatInfo, StatePayload, VoicePeer } from '../shared/protocol.js';
 
 /** How long a dropped player's seat is held before a bot plays for them. */
 export const RECONNECT_GRACE_MS = 60_000;
-export const BOT_DELAY_MS = 900;
+export const BOT_DELAY_MS = 1_200;
 /** Extra pause after a trick completes, so people can see it. */
-export const TRICK_PAUSE_MS = 1_400;
-export const AUTO_NEXT_HAND_MS = 12_000;
+export const TRICK_PAUSE_MS = 3_000;
+export const AUTO_NEXT_HAND_MS = 25_000;
 /** Remove rooms nobody has been connected to for this long. */
 export const IDLE_ROOM_MS = 30 * 60_000;
 
@@ -48,9 +48,16 @@ export interface Room {
   match: MatchState | null;
   timer: NodeJS.Timeout | null;
   emptySince: number | null;
+  teamNames: [string, string];
+  /** Sockets in the voice chat, with the player each belongs to. */
+  voice: Map<string, string>;
+  nextHandAt: number | null;
 }
 
-export type Emit = (socketId: string, payload: StatePayload) => void;
+export interface Emitter {
+  state: (socketId: string, payload: StatePayload) => void;
+  voicePeerLeft: (socketId: string, peerSocketId: string) => void;
+}
 
 export class RoomError extends Error {}
 
@@ -61,7 +68,7 @@ export class RoomManager {
   /** socket id -> [room code, player id] */
   private sockets = new Map<string, { code: string; playerId: string }>();
 
-  constructor(private emit: Emit) {
+  constructor(private emit: Emitter) {
     setInterval(() => this.sweep(), 60_000).unref();
   }
 
@@ -86,6 +93,9 @@ export class RoomManager {
       match: null,
       timer: null,
       emptySince: null,
+      teamNames: ['Team A', 'Team B'],
+      voice: new Map(),
+      nextHandAt: null,
     };
     this.rooms.set(code, room);
     const player = this.attach(room, socketId, name, token);
@@ -256,6 +266,9 @@ export class RoomManager {
   private schedule(room: Room, extraDelay = 0) {
     this.stopTimer(room);
     const m = room.match;
+    const wasWaiting = room.nextHandAt;
+    room.nextHandAt = m?.hand.phase === 'handOver' ? Date.now() + AUTO_NEXT_HAND_MS : null;
+    if (room.nextHandAt !== wasWaiting && (room.nextHandAt === null) !== (wasWaiting === null)) this.broadcast(room);
     if (!m) return;
     const h = m.hand;
     if (h.phase === 'matchOver') return;
@@ -285,7 +298,40 @@ export class RoomManager {
     room.timer = null;
   }
 
+  setTeamName(socketId: string, team: 0 | 1, name: string) {
+    const { room, seat, isHost } = this.ctx(socketId);
+    if (!isHost && (seat === null || seat % 2 !== team)) throw new RoomError('Only the host or that team can rename it.');
+    const clean = name.replace(/\s+/g, ' ').trim().slice(0, 24);
+    if (!clean) throw new RoomError('Team name cannot be empty.');
+    room.teamNames[team] = clean;
+    this.broadcast(room);
+  }
+
+  voiceJoin(socketId: string): VoicePeer[] {
+    const { room, player } = this.ctx(socketId);
+    const peers = [...room.voice].filter(([sid]) => sid !== socketId).map(([sid, playerId]) => ({ socketId: sid, playerId }));
+    room.voice.set(socketId, player.id);
+    this.broadcast(room);
+    return peers;
+  }
+
+  voiceLeave(socketId: string) {
+    const ref = this.sockets.get(socketId);
+    const room = ref && this.rooms.get(ref.code);
+    if (!room || !room.voice.delete(socketId)) return;
+    for (const sid of room.voice.keys()) this.emit.voicePeerLeft(sid, socketId);
+    this.broadcast(room);
+  }
+
+  /** Only relay voice signals between two sockets in the same room's voice chat. */
+  canSignal(from: string, to: string): boolean {
+    const ref = this.sockets.get(from);
+    const room = ref && this.rooms.get(ref.code);
+    return !!room && room.voice.has(from) && room.voice.has(to);
+  }
+
   leave(socketId: string) {
+    this.voiceLeave(socketId);
     const ref = this.sockets.get(socketId);
     if (!ref) return;
     this.sockets.delete(socketId);
@@ -307,6 +353,7 @@ export class RoomManager {
   }
 
   disconnect(socketId: string) {
+    this.voiceLeave(socketId);
     const ref = this.sockets.get(socketId);
     if (!ref) return;
     this.sockets.delete(socketId);
@@ -378,6 +425,9 @@ export class RoomManager {
         isHost: p.id === room.hostId,
       })),
       status: room.match ? 'playing' : 'lobby',
+      teamNames: room.teamNames,
+      voice: [...new Set(room.voice.values())],
+      nextHandAt: room.nextHandAt,
     };
   }
 
@@ -390,7 +440,7 @@ export class RoomManager {
         you: { id: p.id, seat, isHost: p.id === room.hostId },
         game: room.match ? viewFor(room.match, seat) : null,
       };
-      for (const sid of p.socketIds) this.emit(sid, payload);
+      for (const sid of p.socketIds) this.emit.state(sid, payload);
     }
   }
 }
