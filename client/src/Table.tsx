@@ -178,7 +178,7 @@ export function Table({
               disabled={!selected || !!pending}
               onClick={() => selected && send({ type: 'chooseTrump', cardId: selected }, 'trump')}
             >
-              {selected ? `Place ${selected.slice(0, -1)}${SUIT_SYMBOLS[selected.slice(-1) as 'S']} face down as trump` : 'Pick a card below'}
+              {selected ? `Place ${selected.slice(0, -1)}${SUIT_SYMBOLS[selected.slice(-1) as 'S']} face down as തുറുപ്പ്` : 'Pick a card below'}
             </button>
           </div>
         )}
@@ -186,7 +186,7 @@ export function Table({
         {playing && g.canCallTrump && (
           <div className="actions">
             <button type="button" className="primary" onClick={() => send({ type: 'callTrump' }, 'call')}>
-              {g.bidder === you.seat ? 'Reveal trump and play one' : 'Ask for trump'}
+              {g.bidder === you.seat ? 'Reveal തുറുപ്പ് and play one' : 'Ask for തുറുപ്പ്'}
             </button>
           </div>
         )}
@@ -217,7 +217,7 @@ export function Table({
                   playable={playing && g.legalCardIds.includes(g.trumpCard.id)}
                   onClick={() => playing && send({ type: 'play', cardId: g.trumpCard!.id }, g.trumpCard!.id)}
                 />
-                <span className="muted small">Your face-down trump</span>
+                <span className="muted small">Your face-down തുറുപ്പ്</span>
               </div>
             )}
           </div>
@@ -294,7 +294,7 @@ function Trick({ shown, posOf }: { shown: ShownTrick; posOf: (s: Seat) => Pos })
       {shown.cards.map((p) => (
         <div key={p.card.id} className={`trick-card at-${posOf(p.seat)}${shown.winner === p.seat ? ' winner' : ''}`}>
           <CardFace card={p.card} small />
-          {p.countsAsTrump && <span className="trump-mark">trump</span>}
+          {p.countsAsTrump && <span className="trump-mark">തുറുപ്പ്</span>}
         </div>
       ))}
     </div>
@@ -331,7 +331,7 @@ function Opponent(props: {
       {props.status && <div className="muted small">{props.status}</div>}
       <div className="opp-cards">
         {props.count > 0 && <CardBack mini label={String(props.count)} />}
-        {props.hiddenTrump && <CardBack mini label="T" />}
+        {props.hiddenTrump && <CardBack mini label="തു" />}
       </div>
       {props.bid && <div className="bubble">{props.bid}</div>}
     </div>
@@ -344,7 +344,7 @@ function TrumpPanel({ g, seatName, isBidder }: { g: PlayerView; seatName: (s: Se
   const revealed = g.trumpRevealed && g.trumpSuit && g.trumpCard;
   return (
     <div className={`trump-panel${revealed ? ' revealed' : ''}`} key={revealed ? 'shown' : 'hidden'}>
-      <div className="trump-panel-label">Trump</div>
+      <div className="trump-panel-label">തുറുപ്പ്</div>
       {revealed ? (
         <>
           <CardFace card={g.trumpCard!} small />
@@ -373,11 +373,11 @@ function TrumpBadge({ g, seatName }: { g: PlayerView; seatName: (s: Seat) => str
   if (g.trumpSuit && g.trumpRevealed)
     return (
       <span className={`trump-badge ${g.trumpSuit === 'H' || g.trumpSuit === 'D' ? 'red' : ''}`}>
-        Trump {SUIT_SYMBOLS[g.trumpSuit]} {g.revealedBy !== null && <span className="badge-note">(asked by {seatName(g.revealedBy)})</span>}
+        തുറുപ്പ് {SUIT_SYMBOLS[g.trumpSuit]} {g.revealedBy !== null && <span className="badge-note">(asked by {seatName(g.revealedBy)})</span>}
       </span>
     );
-  if (g.trumpSuit) return <span className="trump-badge hidden">Trump {SUIT_SYMBOLS[g.trumpSuit]} (only you know)</span>;
-  if (g.hasHiddenTrump) return <span className="trump-badge hidden">Trump hidden</span>;
+  if (g.trumpSuit) return <span className="trump-badge hidden">തുറുപ്പ് {SUIT_SYMBOLS[g.trumpSuit]} (only you know)</span>;
+  if (g.hasHiddenTrump) return <span className="trump-badge hidden">തുറുപ്പ് hidden</span>;
   return null;
 }
 
@@ -399,7 +399,7 @@ function Prompt({
   const who = seatName(g.turn);
   if (!myTurn) {
     const verb =
-      g.phase === 'bidding1' || g.phase === 'bidding2' ? 'to bid' : g.phase.startsWith('choose') ? 'to choose trump' : 'to play';
+      g.phase === 'bidding1' || g.phase === 'bidding2' ? 'to bid' : g.phase.startsWith('choose') ? 'to choose തുറുപ്പ്' : 'to play';
     return (
       <span className="muted">
         {spectating ? 'Watching. ' : ''}Waiting for {who} {verb}…
@@ -413,11 +413,11 @@ function Prompt({
       return <span>All 8 cards dealt. Raise to {g.minBid ?? 24}+ or pass.</span>;
     case 'chooseTrump':
     case 'chooseTrump2':
-      return <span>You won the bid. Pick a card: its suit becomes trump and it stays face down.</span>;
+      return <span>You won the bid. Pick a card: its suit becomes തുറുപ്പ് and it stays face down.</span>;
     case 'playing':
       if (g.trick.length === 0) return <span>Your lead.</span>;
-      if (g.canCallTrump && g.legalCardIds.length === 0) return <span>You can't follow suit. Reveal trump to continue.</span>;
-      if (g.canCallTrump) return <span>You can't follow suit. Discard a card or ask for trump.</span>;
+      if (g.canCallTrump && g.legalCardIds.length === 0) return <span>You can't follow suit. Reveal തുറുപ്പ് to continue.</span>;
+      if (g.canCallTrump) return <span>You can't follow suit. Discard a card or ask for തുറുപ്പ്.</span>;
       return <span>Your turn. Play a highlighted card.</span>;
   }
 }
@@ -512,7 +512,7 @@ function Celebration(props: {
           {over ? `${teamName(g.winner!)} win the match!` : `${teamName(handWinner)} win the hand!`}
         </h2>
         <p>
-          {seatName(r.bidder)} bid <strong>{r.bid}</strong> with {SUIT_NAMES[r.trumpSuit]} {SUIT_SYMBOLS[r.trumpSuit]} as trump, and{' '}
+          {seatName(r.bidder)} bid <strong>{r.bid}</strong> with {SUIT_NAMES[r.trumpSuit]} {SUIT_SYMBOLS[r.trumpSuit]} as തുറുപ്പ്, and{' '}
           {teamName(bidTeam)} took <strong>{r.points[bidTeam]}</strong> points. The bid {r.success ? 'was made' : 'failed'}.
         </p>
         <table className="result-table">

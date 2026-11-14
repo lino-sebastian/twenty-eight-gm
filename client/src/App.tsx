@@ -156,7 +156,7 @@ function Home(props: {
           value={props.name}
           maxLength={20}
           autoFocus
-          placeholder="e.g. Lino"
+          placeholder="e.g. Adam"
           onChange={(e) => props.setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (props.invited ? props.onJoin() : props.onCreate())}
         />

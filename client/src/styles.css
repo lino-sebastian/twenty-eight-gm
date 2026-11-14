@@ -256,7 +256,7 @@ button:active:not(:disabled) { transform: scale(0.96); }
   background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 12px; padding: 8px 12px;
   max-width: 130px; text-align: center;
 }
-.trump-panel-label { font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+.trump-panel-label { font-size: 0.85rem; color: var(--muted); }
 .trump-panel.revealed { border: 2px solid var(--accent); background: rgba(242, 193, 78, 0.15); animation: trump-flash 1.2s ease 2; }
 .trump-panel.revealed .trump-panel-label { color: var(--accent); font-weight: 700; }
 .trump-suit { font-weight: 800; font-size: 1.05rem; background: #fff; color: #111; border-radius: 999px; padding: 1px 10px; }

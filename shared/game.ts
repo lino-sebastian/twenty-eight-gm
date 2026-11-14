@@ -300,7 +300,7 @@ function startPlay(m: MatchState) {
     .concat(h.trumpCard ? [h.trumpCard] : [])
     .filter((c) => c.suit === h.trumpSuit).length;
   if (trumpCount === 8) {
-    redeal(m, 'The bidding side held all 8 trumps, so the cards were redealt.');
+    redeal(m, 'The bidding side held all 8 cards of the തുറുപ്പ് suit, so the cards were redealt.');
     return;
   }
   h.phase = 'playing';
@@ -408,7 +408,7 @@ export function applyAction(state: MatchState, seat: Seat, action: Action, rng: 
       return m;
     }
     case 'chooseTrump': {
-      if (h.phase !== 'chooseTrump' && h.phase !== 'chooseTrump2') throw new GameError('Not choosing trump now.');
+      if (h.phase !== 'chooseTrump' && h.phase !== 'chooseTrump2') throw new GameError('Not choosing തുറുപ്പ് now.');
       if (h.turn !== seat) throw notYourTurn();
       const idx = h.hands[seat].findIndex((c) => c.id === action.cardId);
       if (idx < 0) throw new GameError('That card is not in your hand.');
@@ -432,7 +432,7 @@ export function applyAction(state: MatchState, seat: Seat, action: Action, rng: 
     case 'callTrump': {
       if (h.phase !== 'playing') throw new GameError('Not playing now.');
       if (h.turn !== seat) throw notYourTurn();
-      if (!legalPlays(m, seat).canCallTrump) throw new GameError('You can only ask for trump when you cannot follow suit.');
+      if (!legalPlays(m, seat).canCallTrump) throw new GameError('You can only ask for തുറുപ്പ് when you cannot follow suit.');
       revealTrump(h, seat);
       h.mustTrump = seat;
       m.notice = null;
