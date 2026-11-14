@@ -49,9 +49,9 @@ export function CardFace({
   );
 }
 
-export function CardBack({ small, label }: { small?: boolean; label?: string }) {
+export function CardBack({ small, mini, label }: { small?: boolean; mini?: boolean; label?: string }) {
   return (
-    <div className={`card back${small ? ' small' : ''}`} aria-label={label ? `${label} cards` : 'Face-down card'}>
+    <div className={`card back${small ? ' small' : ''}${mini ? ' mini' : ''}`} aria-label={label ? `${label} cards` : 'Face-down card'}>
       {label ? <span className="back-label">{label}</span> : null}
     </div>
   );

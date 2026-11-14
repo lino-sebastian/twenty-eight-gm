@@ -77,7 +77,7 @@ export function useVoice(onError: (m: string) => void) {
 
   const join = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
-      onError('Voice needs a secure page. Use http://localhost, or run `npm run dev:https` for other devices.');
+      onError('Your browser only allows the microphone on secure pages. Open the https:// address instead of http:// (the host runs `npm run dev`, which now uses https).');
       return;
     }
     setStatus('connecting');

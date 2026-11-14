@@ -11,8 +11,8 @@ type Pos = 'bottom' | 'right' | 'top' | 'left';
 const POSITIONS: Pos[] = ['bottom', 'right', 'top', 'left'];
 
 /** How long a finished trick stays on the table (the server waits a little longer before bots lead). */
-const TRICK_HOLD_MS = 2_700;
-const TRICK_COLLECT_MS = 600;
+const TRICK_HOLD_MS = 4_500;
+const TRICK_COLLECT_MS = 700;
 
 export function Table({
   state,
@@ -123,6 +123,7 @@ export function Table({
       </header>
 
       <div className="felt">
+        <TrumpPanel g={g} seatName={seatName} isBidder={you.seat !== null && g.bidder === you.seat} />
         {([0, 1, 2, 3] as Seat[])
           .filter((s) => posOf(s) !== 'bottom' || you.seat === null)
           .map((s) => (
@@ -141,7 +142,7 @@ export function Table({
             />
           ))}
 
-        <div className="center">
+        <div className="table-center">
           <Trick shown={shown} posOf={posOf} />
           {shown.holding && shown.winner !== null && (
             <div className={`trick-winner team-${shown.winner % 2}`}>
@@ -229,7 +230,6 @@ export function Table({
           seatName={seatName}
           teamName={teamName}
           myTeam={you.seat === null ? null : myTeam}
-          nextHandAt={room.nextHandAt}
           isHost={you.isHost}
           seated={you.seat !== null}
           onError={onError}
@@ -330,10 +330,40 @@ function Opponent(props: {
       </div>
       {props.status && <div className="muted small">{props.status}</div>}
       <div className="opp-cards">
-        {props.count > 0 && <CardBack small label={String(props.count)} />}
-        {props.hiddenTrump && <CardBack small label="T" />}
+        {props.count > 0 && <CardBack mini label={String(props.count)} />}
+        {props.hiddenTrump && <CardBack mini label="T" />}
       </div>
       {props.bid && <div className="bubble">{props.bid}</div>}
+    </div>
+  );
+}
+
+/** Large trump indicator in the top corner of the table. */
+function TrumpPanel({ g, seatName, isBidder }: { g: PlayerView; seatName: (s: Seat) => string; isBidder: boolean }) {
+  if (g.bidder === null || (!g.trumpCard && !g.hasHiddenTrump)) return null;
+  const revealed = g.trumpRevealed && g.trumpSuit && g.trumpCard;
+  return (
+    <div className={`trump-panel${revealed ? ' revealed' : ''}`} key={revealed ? 'shown' : 'hidden'}>
+      <div className="trump-panel-label">Trump</div>
+      {revealed ? (
+        <>
+          <CardFace card={g.trumpCard!} small />
+          <div className={`trump-suit ${g.trumpSuit === 'H' || g.trumpSuit === 'D' ? 'red' : ''}`}>
+            {SUIT_SYMBOLS[g.trumpSuit!]} {SUIT_NAMES[g.trumpSuit!]}
+          </div>
+          {g.revealedBy !== null && <div className="muted small">asked by {seatName(g.revealedBy)}</div>}
+        </>
+      ) : isBidder && g.trumpCard ? (
+        <>
+          <CardFace card={g.trumpCard} small />
+          <div className="muted small">hidden · only you know</div>
+        </>
+      ) : (
+        <>
+          <CardBack small label="?" />
+          <div className="muted small">hidden by {seatName(g.bidder)}</div>
+        </>
+      )}
     </div>
   );
 }
@@ -420,16 +450,6 @@ function BidPanel({ g, pending, send }: { g: PlayerView; pending: boolean; send:
   );
 }
 
-function useCountdown(until: number | null) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    if (!until) return;
-    const t = window.setInterval(() => setNow(Date.now()), 250);
-    return () => window.clearInterval(t);
-  }, [until]);
-  return until ? Math.max(0, Math.ceil((until - now) / 1000)) : null;
-}
-
 const CONFETTI_COLORS = ['#f2c14e', '#ff6b6b', '#4dabf7', '#69db7c', '#e599f7', '#ffffff'];
 
 function Confetti({ count }: { count: number }) {
@@ -470,7 +490,6 @@ function Celebration(props: {
   seatName: (s: Seat) => string;
   teamName: (t: number) => string;
   myTeam: number | null;
-  nextHandAt: number | null;
   isHost: boolean;
   seated: boolean;
   onError: (m: string) => void;
@@ -480,7 +499,6 @@ function Celebration(props: {
   const bidTeam = r.bidder % 2;
   const handWinner = r.success ? bidTeam : 1 - bidTeam;
   const over = g.phase === 'matchOver';
-  const seconds = useCountdown(over ? null : props.nextHandAt);
   const weWon = myTeam === null || (over ? g.winner === myTeam : handWinner === myTeam);
   const order = myTeam === null ? [0, 1] : [myTeam, 1 - myTeam];
   return (
@@ -521,10 +539,10 @@ function Celebration(props: {
         </table>
         {!over && props.seated && (
           <button type="button" className="primary" onClick={() => socket.emit('action', { type: 'nextHand' }, ack(props.onError))}>
-            Next hand{seconds !== null ? ` (${seconds})` : ''}
+            Start next hand
           </button>
         )}
-        {!over && !props.seated && seconds !== null && <p className="muted small">Next hand in {seconds}s</p>}
+        {!over && <p className="muted small">The next hand starts when any player presses the button.</p>}
         {over &&
           (props.isHost ? (
             <button type="button" className="primary" onClick={() => socket.emit('endGame', ack(props.onError))}>

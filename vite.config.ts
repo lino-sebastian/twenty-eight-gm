@@ -6,8 +6,8 @@ const serverPort = Number(process.env.PORT ?? 3001);
 
 export default defineConfig(({ mode }) => ({
   root: 'client',
-  // `npm run dev:https` serves over HTTPS with a self-signed certificate, which phones and
-  // other computers need before a browser will allow the microphone for voice chat.
+  // `npm run dev` serves over HTTPS with a self-signed certificate: phones and other computers
+  // only allow the microphone (voice chat) on secure pages. `npm run dev:http` skips it.
   plugins: [react(), ...(mode === 'https' ? [basicSsl()] : [])],
   build: { outDir: 'dist', emptyOutDir: true },
   server: {

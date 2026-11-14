@@ -23,8 +23,6 @@ export interface RoomInfo {
   teamNames: [string, string];
   /** Player ids currently in the voice chat. */
   voice: string[];
-  /** When the next hand starts by itself (ms since epoch), while a hand result is showing. */
-  nextHandAt: number | null;
 }
 
 export interface VoicePeer {

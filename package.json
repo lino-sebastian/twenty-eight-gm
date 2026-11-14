@@ -5,14 +5,14 @@
   "description": "Multiplayer web app for the Indian card game 28",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"vite --mode https\"",
     "dev:server": "tsx watch server/index.ts",
-    "dev:client": "vite",
+    "dev:client": "vite --mode https",
     "build": "vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "dev:https": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"vite --mode https\""
+    "dev:http": "concurrently -n server,client -c blue,green \"npm:dev:server\" \"vite\""
   },
   "engines": {
     "node": ">=20"

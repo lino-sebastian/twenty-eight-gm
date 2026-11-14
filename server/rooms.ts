@@ -18,8 +18,7 @@ import type { RoomInfo, SeatInfo, StatePayload, VoicePeer } from '../shared/prot
 export const RECONNECT_GRACE_MS = 60_000;
 export const BOT_DELAY_MS = 1_200;
 /** Extra pause after a trick completes, so people can see it. */
-export const TRICK_PAUSE_MS = 3_000;
-export const AUTO_NEXT_HAND_MS = 25_000;
+export const TRICK_PAUSE_MS = 5_000;
 /** Remove rooms nobody has been connected to for this long. */
 export const IDLE_ROOM_MS = 30 * 60_000;
 
@@ -51,7 +50,6 @@ export interface Room {
   teamNames: [string, string];
   /** Sockets in the voice chat, with the player each belongs to. */
   voice: Map<string, string>;
-  nextHandAt: number | null;
 }
 
 export interface Emitter {
@@ -95,7 +93,6 @@ export class RoomManager {
       emptySince: null,
       teamNames: ['Team A', 'Team B'],
       voice: new Map(),
-      nextHandAt: null,
     };
     this.rooms.set(code, room);
     const player = this.attach(room, socketId, name, token);
@@ -266,23 +263,11 @@ export class RoomManager {
   private schedule(room: Room, extraDelay = 0) {
     this.stopTimer(room);
     const m = room.match;
-    const wasWaiting = room.nextHandAt;
-    room.nextHandAt = m?.hand.phase === 'handOver' ? Date.now() + AUTO_NEXT_HAND_MS : null;
-    if (room.nextHandAt !== wasWaiting && (room.nextHandAt === null) !== (wasWaiting === null)) this.broadcast(room);
     if (!m) return;
     const h = m.hand;
     if (h.phase === 'matchOver') return;
-    if (h.phase === 'handOver') {
-      room.timer = setTimeout(() => {
-        room.timer = null;
-        if (room.match?.hand.phase === 'handOver') {
-          room.match = applyAction(room.match, 0, { type: 'nextHand' });
-          this.broadcast(room);
-          this.schedule(room);
-        }
-      }, AUTO_NEXT_HAND_MS);
-      return;
-    }
+    // The next hand starts only when a player presses Next hand.
+    if (h.phase === 'handOver') return;
     if (!this.isBotSeat(room, h.turn)) return;
     room.timer = setTimeout(() => {
       room.timer = null;
@@ -427,7 +412,6 @@ export class RoomManager {
       status: room.match ? 'playing' : 'lobby',
       teamNames: room.teamNames,
       voice: [...new Set(room.voice.values())],
-      nextHandAt: room.nextHandAt,
     };
   }
 

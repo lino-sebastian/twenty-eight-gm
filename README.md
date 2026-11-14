@@ -13,13 +13,11 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and create a room.
+Open https://localhost:5173 and create a room. The dev server uses a self-signed certificate (so phones allow the microphone for voice chat); your browser shows a warning the first time. Choose "Advanced" then "Proceed" (Chrome) or "Show details" then "visit this website" (Safari). Use `npm run dev:http` if you don't need voice.
 
 **Trying it with several players on one computer:** each browser remembers who you are, so two tabs in the same browser count as the same player. Open the invite link in a private/incognito window or a different browser for each extra player.
 
-**Playing with phones on the same Wi-Fi:** `npm run dev` prints a `Network:` address such as `http://192.168.1.20:5173`. Open that address on the other devices, or share the room code.
-
-**Voice chat on other devices:** browsers only allow the microphone on `localhost` or on HTTPS pages. To talk from phones or other computers on your Wi-Fi, run `npm run dev:https` instead and open the `https://…:5173` Network address. The certificate is self-signed, so each device shows a warning the first time; choose to continue.
+**Playing with phones on the same Wi-Fi:** `npm run dev` prints a `Network:` address such as `https://192.168.1.20:5173`. Open that address on the other devices (accept the certificate warning once on each), or share the invite link from the lobby. Voice chat only works on `https://` addresses or `localhost`.
 
 ### Production build
 
@@ -64,7 +62,7 @@ npm run typecheck
 - **Invite:** copy the link, copy just the room code, or use your phone's share sheet.
 - **Team names:** tap a team name in the lobby to rename it. The host can rename both teams; players can rename their own.
 - **Voice chat:** press **Join voice** in the lobby or at the table, then mute or leave whenever you like. Voice goes directly between browsers (WebRTC); the server only helps them connect. Players on very strict networks may not be able to connect without a TURN relay server.
-- **Pacing:** each finished trick stays on the table for about 3 seconds and slides to the winner. After each hand the result and a celebration show for 25 seconds, or until someone presses **Next hand**.
+- **Pacing:** each finished trick stays on the table for about 4.5 seconds and slides to the winner. After each hand the result and a celebration stay up until any player presses **Start next hand**.
 
 ## How rooms work
 
