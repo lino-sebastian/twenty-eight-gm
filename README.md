@@ -28,6 +28,16 @@ npm start       # serves the app and game server on http://localhost:3001
 
 Set `PORT` to change the port. Any Node host that supports WebSockets (Render, Fly.io, Railway, a VPS) can run it with these two commands.
 
+### Deploy to Render (free)
+
+The repo includes a `render.yaml` blueprint.
+
+1. Sign in at [render.com](https://render.com) with GitHub.
+2. Choose **New → Blueprint**, pick this repository, and press **Apply**.
+3. When the build finishes, open the `https://twenty-eight-….onrender.com` address and share room links from there. Voice works because the site is HTTPS.
+
+Every push to `main` redeploys. On the free plan the service sleeps after about 15 minutes with no visitors; the first visit after that takes up to a minute to wake it, and any open rooms are lost.
+
 ### Tests
 
 ```bash
