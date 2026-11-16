@@ -268,3 +268,57 @@ button:active:not(:disabled) { transform: scale(0.96); }
   .trump-panel .card.small { --card-w: 46px; --card-h: 64px; }
   .trump-suit { font-size: 0.85rem; padding: 1px 6px; }
 }
+
+/* The card table in the middle of the room */
+.stage { position: relative; display: grid; place-items: center; }
+.table-surface {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(560px, 46vw); height: 360px; border-radius: 180px; padding: 14px;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.18), transparent 40%),
+    repeating-linear-gradient(95deg, #6b3a1f 0 6px, #7a4424 6px 11px, #5e321a 11px 15px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55), inset 0 2px 3px rgba(255, 255, 255, 0.25), inset 0 -3px 6px rgba(0, 0, 0, 0.5);
+}
+.table-felt {
+  width: 100%; height: 100%; border-radius: 166px; position: relative; overflow: hidden;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(255, 255, 255, 0.12), transparent 60%),
+    repeating-radial-gradient(circle at 30% 30%, rgba(0, 0, 0, 0.04) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, #1f8a55 0%, #146c43 55%, #0c4f30 100%);
+  box-shadow: inset 0 0 0 2px rgba(242, 193, 78, 0.35), inset 0 0 30px rgba(0, 0, 0, 0.55);
+}
+.table-felt::after {
+  content: ''; position: absolute; inset: 18px; border-radius: 150px; border: 1px dashed rgba(242, 193, 78, 0.25);
+}
+.table-logo {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  font-size: 6rem; font-weight: 900; color: rgba(0, 0, 0, 0.12); letter-spacing: -4px; user-select: none;
+}
+.trick { z-index: 1; }
+
+/* Dealing */
+.deal { position: absolute; left: 50%; top: 50%; width: 0; height: 0; z-index: 3; pointer-events: none; --far-x: 46vw; --far-y: 300px; }
+.deal-card { position: absolute; left: -38px; top: -53px; opacity: 0; animation: deal 0.55s cubic-bezier(.25,.8,.35,1) both; }
+.deal-card.to-bottom { --dx: 0px; --dy: var(--far-y); }
+.deal-card.to-top { --dx: 0px; --dy: calc(var(--far-y) * -1); }
+.deal-card.to-left { --dx: calc(var(--far-x) * -1); --dy: 0px; }
+.deal-card.to-right { --dx: var(--far-x); --dy: 0px; }
+@keyframes deal {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(0.9); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(360deg) scale(0.55); }
+}
+.card.dealt-in { animation: dealt-in 0.45s cubic-bezier(.2,.8,.3,1.1) both; }
+@keyframes dealt-in { from { opacity: 0; transform: translateY(-160px) scale(0.6) rotate(-12deg); } }
+
+@media (max-width: 600px) {
+  /* Portrait table that leaves room for the players on each side. */
+  .table-surface { width: min(62vw, 250px); height: 296px; border-radius: 110px; padding: 9px; }
+  .table-felt { border-radius: 101px; }
+  .table-felt::after { inset: 10px; border-radius: 92px; }
+  .table-logo { font-size: 4rem; }
+  .deal { --far-x: 44vw; --far-y: 250px; }
+  .deal-card { left: -27px; top: -38px; }
+}
+
+.opponent { z-index: 2; }

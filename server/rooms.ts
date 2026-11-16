@@ -19,6 +19,8 @@ export const RECONNECT_GRACE_MS = 60_000;
 export const BOT_DELAY_MS = 1_200;
 /** Extra pause after a trick completes, so people can see it. */
 export const TRICK_PAUSE_MS = 5_000;
+/** Let the dealing animation finish before a bot bids. */
+export const DEAL_PAUSE_MS = 2_000;
 /** Remove rooms nobody has been connected to for this long. */
 export const IDLE_ROOM_MS = 30 * 60_000;
 
@@ -224,7 +226,7 @@ export class RoomManager {
       if (o?.kind === 'human' && room.players.get(o.playerId)!.socketIds.size === 0) room.botPlaying.add(s);
     }
     this.broadcast(room);
-    this.schedule(room);
+    this.schedule(room, DEAL_PAUSE_MS);
   }
 
   endGame(socketId: string) {
@@ -250,9 +252,15 @@ export class RoomManager {
       if (e instanceof GameError) throw new RoomError(e.message);
       throw e;
     }
-    const trickDone = room.match.hand.tricks.length > before.hand.tricks.length;
+    const after = room.match.hand;
+    const trickDone = after.tricks.length > before.hand.tricks.length;
+    const dealt =
+      room.match.handNumber !== before.handNumber ||
+      (after.phase === 'bidding2' && before.hand.phase !== 'bidding2') ||
+      (after.phase === 'bidding1' && after.bids.length === 0 && before.hand.bids.length > 0) ||
+      (after.phase === 'bidding1' && action.type === 'requestRedeal');
     this.broadcast(room);
-    this.schedule(room, trickDone ? TRICK_PAUSE_MS : 0);
+    this.schedule(room, trickDone ? TRICK_PAUSE_MS : dealt ? DEAL_PAUSE_MS : 0);
   }
 
   private isBotSeat(room: Room, seat: Seat) {

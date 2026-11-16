@@ -56,6 +56,8 @@ export function Table({
   useEffect(() => setSelected(null), [g.phase]);
 
   const shown = useShownTrick(g);
+  const deal = useDeal(g);
+  const dealDelay = useDealtCardDelays(g, me);
   const myTurn = you.seat !== null && g.turn === you.seat && !shown.holding;
   const choosingTrump = myTurn && (g.phase === 'chooseTrump' || g.phase === 'chooseTrump2');
   const playing = myTurn && g.phase === 'playing' && !pending;
@@ -143,7 +145,15 @@ export function Table({
           ))}
 
         <div className="table-center">
-          <Trick shown={shown} posOf={posOf} />
+          <div className="stage">
+            <div className="table-surface" aria-hidden>
+              <div className="table-felt">
+                <span className="table-logo">28</span>
+              </div>
+            </div>
+            {deal && <DealAnimation key={deal.key} dealer={g.dealer} count={deal.count} posOf={posOf} />}
+            <Trick shown={shown} posOf={posOf} />
+          </div>
           {shown.holding && shown.winner !== null && (
             <div className={`trick-winner team-${shown.winner % 2}`}>
               {seatName(shown.winner)} {seatName(shown.winner) === 'You' ? 'win' : 'wins'} the trick
@@ -203,9 +213,9 @@ export function Table({
                   playable={playable}
                   dim={playing && !legal}
                   selected={selected === c.id}
-                  className={pending === c.id ? 'leaving' : undefined}
+                  className={pending === c.id ? 'leaving' : dealDelay(c.id) !== null ? 'dealt-in' : undefined}
                   onClick={() => onCardClick(c.id)}
-                  style={{ '--i': i, '--n': hand.length } as React.CSSProperties}
+                  style={{ '--i': i, '--n': hand.length, animationDelay: dealDelay(c.id) !== null ? `${dealDelay(c.id)}ms` : undefined } as React.CSSProperties}
                 />
               );
             })}
@@ -244,6 +254,60 @@ function statusOf(info: StatePayload['room']['seats'][number]): string | null {
   if (info.kind === 'human' && info.botPlaying) return 'bot playing';
   if (info.kind === 'human' && !info.connected) return 'reconnecting…';
   return null;
+}
+
+/** Time between cards flying out of the dealer's hands. */
+const DEAL_STEP_MS = 85;
+
+/** Detect a fresh deal: 4 cards each at the start of a hand, or 4 more after the first bidding. */
+function useDeal(g: PlayerView): { key: string; count: number } | null {
+  const dealKey =
+    g.phase === 'bidding1' && g.bids.length === 0 ? `${g.handNumber}-1-${g.notice ?? ''}` :
+    g.phase === 'bidding2' && !g.bids.some((b) => b.round === 2) ? `${g.handNumber}-2` : null;
+  const [deal, setDeal] = useState<{ key: string; count: number } | null>(null);
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    if (!dealKey || dealKey === last.current) return;
+    last.current = dealKey;
+    setDeal({ key: dealKey, count: 16 });
+    const t = window.setTimeout(() => setDeal(null), 16 * DEAL_STEP_MS + 700);
+    return () => window.clearTimeout(t);
+  }, [dealKey]);
+  return deal;
+}
+
+/** Card backs fly from the middle of the table to each player in dealing order. */
+function DealAnimation({ dealer, count, posOf }: { dealer: Seat; count: number; posOf: (s: Seat) => Pos }) {
+  return (
+    <div className="deal" aria-hidden>
+      {Array.from({ length: count }, (_, i) => {
+        const seat = ((dealer + 1 + i) % 4) as Seat;
+        return (
+          <div key={i} className={`deal-card to-${posOf(seat)}`} style={{ animationDelay: `${i * DEAL_STEP_MS}ms` }}>
+            <CardBack small />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** For cards that just arrived in my hand, the delay that matches when the dealer reaches me. */
+function useDealtCardDelays(g: PlayerView, me: Seat) {
+  const seen = useRef<{ hand: number; ids: Set<string> }>({ hand: -1, ids: new Set() });
+  const fresh = useRef<Map<string, number>>(new Map());
+  if (seen.current.hand !== g.handNumber) {
+    seen.current = { hand: g.handNumber, ids: new Set() };
+    fresh.current = new Map();
+  }
+  const offset = (me - g.dealer - 1 + 8) % 4;
+  const newIds = g.myHand.map((c) => c.id).filter((id) => !seen.current.ids.has(id));
+  // Only animate real deals (4 new cards), not the trump card coming back into the bidder's hand.
+  if (newIds.length >= 4) {
+    newIds.forEach((id, k) => fresh.current.set(id, (k * 4 + offset) * DEAL_STEP_MS + 380));
+  }
+  newIds.forEach((id) => seen.current.ids.add(id));
+  return (id: string) => fresh.current.get(id) ?? null;
 }
 
 interface ShownTrick {
