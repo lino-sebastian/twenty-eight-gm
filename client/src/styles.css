@@ -343,3 +343,28 @@ button:active:not(:disabled) { transform: scale(0.96); }
 .trick-card.cut.at-left .card { animation-name: from-left, cut-shake; }
 .trick-card.cut.at-right .card { animation-name: from-right, cut-shake; }
 @keyframes cut-shake { 25% { transform: rotate(-6deg) scale(1.08); } 60% { transform: rotate(4deg) scale(1.04); } }
+
+/* Phones: compact players around the table so the played cards stay fully visible,
+   and the trump panel tucked into the top-right corner. */
+@media (max-width: 600px) {
+  .table-center { z-index: 3; }
+  .opponent { padding: 2px 4px; gap: 2px; max-width: 74px; }
+  .opponent.at-left { left: 2px; }
+  .opponent.at-right { right: 2px; }
+  .opponent.at-top { top: 4px; }
+  .opp-name { font-size: 0.75rem; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .opp-name .tag { font-size: 0.6rem; padding: 0 4px; margin-left: 2px; }
+  .opponent .muted.small { font-size: 0.65rem; }
+  .card.mini { --card-w: 22px; --card-h: 31px; border-width: 2px; border-radius: 3px; }
+  .card.mini .back-label { font-size: 0.65rem; }
+  .bubble { font-size: 0.75rem; padding: 0 6px; }
+  .trump-panel { top: 4px; right: 4px; bottom: auto; padding: 4px 6px; gap: 5px; max-width: 140px; }
+  .trump-panel .card.small { --card-w: 36px; --card-h: 50px; }
+  .trump-panel .trump-panel-label { font-size: 0.75rem; }
+  .trump-panel .trump-suit { font-size: 0.75rem; }
+  .trump-panel .muted.small { font-size: 0.65rem; }
+}
+@media (max-width: 600px) {
+  .table-center { padding-top: 26px; }
+  .trick-winner { top: auto; bottom: 34px; }
+}
