@@ -6,6 +6,7 @@ import { CardBack, CardFace } from './cards';
 import { ack } from './Lobby';
 import { socket } from './socket';
 import { VoiceControls, useVoice } from './voice';
+import { playCardDown, playDeal, playSwordSwing, setSoundEnabled, soundEnabled } from './sound';
 
 type Pos = 'bottom' | 'right' | 'top' | 'left';
 const POSITIONS: Pos[] = ['bottom', 'right', 'top', 'left'];
@@ -57,6 +58,8 @@ export function Table({
 
   const shown = useShownTrick(g);
   const deal = useDeal(g);
+  useTrickSounds(g);
+  const [soundOn, setSoundOn] = useState(soundEnabled());
   const dealDelay = useDealtCardDelays(g, me);
   const myTurn = you.seat !== null && g.turn === you.seat && !shown.holding;
   const choosingTrump = myTurn && (g.phase === 'chooseTrump' || g.phase === 'chooseTrump2');
@@ -107,6 +110,18 @@ export function Table({
         </div>
         <div className="row">
           <VoiceControls voice={voice} count={room.voice.length} />
+          <button
+            type="button"
+            className="small-btn"
+            title={soundOn ? 'Turn game sounds off' : 'Turn game sounds on'}
+            aria-label={soundOn ? 'Sound on' : 'Sound off'}
+            onClick={() => {
+              setSoundEnabled(!soundOn);
+              setSoundOn(!soundOn);
+            }}
+          >
+            {soundOn ? '🔊' : '🔇'}
+          </button>
           {you.isHost && (
             <button
               type="button"
@@ -270,6 +285,7 @@ function useDeal(g: PlayerView): { key: string; count: number } | null {
     if (!dealKey || dealKey === last.current) return;
     last.current = dealKey;
     setDeal({ key: dealKey, count: 16 });
+    playDeal(16, DEAL_STEP_MS);
     const t = window.setTimeout(() => setDeal(null), 16 * DEAL_STEP_MS + 700);
     return () => window.clearTimeout(t);
   }, [dealKey]);
@@ -308,6 +324,29 @@ function useDealtCardDelays(g: PlayerView, me: Seat) {
   }
   newIds.forEach((id) => seen.current.ids.add(id));
   return (id: string) => fresh.current.get(id) ?? null;
+}
+
+/** True when a trump is played on a trick led in another suit (the trick is "cut"). */
+function isCut(p: PlayedCard, led: PlayedCard | undefined) {
+  return p.countsAsTrump && !!led && led.card.suit !== p.card.suit;
+}
+
+/** A soft tap for each card played, and a sword swing when a trump cuts the trick. */
+function useTrickSounds(g: PlayerView) {
+  const seen = useRef<{ hand: number; ids: Set<string> } | null>(null);
+  const cards = g.trick.length ? g.trick : g.lastTrick?.cards ?? [];
+  const sig = `${g.handNumber}:${cards.map((p) => p.card.id).join(',')}`;
+  useEffect(() => {
+    const first = seen.current === null;
+    if (!seen.current || seen.current.hand !== g.handNumber) seen.current = { hand: g.handNumber, ids: new Set() };
+    const fresh = cards.filter((p) => !seen.current!.ids.has(p.card.id));
+    fresh.forEach((p) => seen.current!.ids.add(p.card.id));
+    if (first || fresh.length === 0) return;
+    const newest = fresh[fresh.length - 1];
+    if (isCut(newest, cards[0])) playSwordSwing();
+    else playCardDown();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig]);
 }
 
 interface ShownTrick {
@@ -356,7 +395,10 @@ function Trick({ shown, posOf }: { shown: ShownTrick; posOf: (s: Seat) => Pos })
   return (
     <div className={`trick${shown.collecting && shown.winner !== null ? ` collect-${posOf(shown.winner)}` : ''}`}>
       {shown.cards.map((p) => (
-        <div key={p.card.id} className={`trick-card at-${posOf(p.seat)}${shown.winner === p.seat ? ' winner' : ''}`}>
+        <div
+          key={p.card.id}
+          className={`trick-card at-${posOf(p.seat)}${shown.winner === p.seat ? ' winner' : ''}${isCut(p, shown.cards[0]) ? ' cut' : ''}`}
+        >
           <CardFace card={p.card} small />
           {p.countsAsTrump && <span className="trump-mark">തുറുപ്പ്</span>}
         </div>

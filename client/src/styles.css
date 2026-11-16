@@ -322,3 +322,24 @@ button:active:not(:disabled) { transform: scale(0.96); }
 }
 
 .opponent { z-index: 2; }
+
+/* A trump cutting the trick: a sword slash flashes across the card. */
+.trick-card.cut .card { overflow: visible; }
+.trick-card.cut::before, .trick-card.cut::after {
+  content: ''; position: absolute; left: 50%; top: 42%; width: 170%; height: 5px; border-radius: 3px; pointer-events: none; z-index: 2;
+  background: linear-gradient(90deg, transparent, #fff 35%, #fff8d6 50%, #fff 65%, transparent);
+  box-shadow: 0 0 12px 3px rgba(255, 240, 180, 0.9);
+  transform: translate(-50%, -50%) rotate(-35deg) scaleX(0); opacity: 0;
+  animation: slash 0.5s 0.32s ease-out both;
+}
+.trick-card.cut::after { top: 52%; width: 120%; height: 3px; animation-delay: 0.38s; }
+@keyframes slash {
+  0% { transform: translate(-50%, -50%) rotate(-35deg) scaleX(0); opacity: 1; }
+  55% { transform: translate(-50%, -50%) rotate(-35deg) scaleX(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(-35deg) scaleX(1.05); opacity: 0; }
+}
+.trick-card.cut .card { animation-name: from-bottom, cut-shake; animation-duration: 0.45s, 0.35s; animation-delay: 0s, 0.4s; }
+.trick-card.cut.at-top .card { animation-name: from-top, cut-shake; }
+.trick-card.cut.at-left .card { animation-name: from-left, cut-shake; }
+.trick-card.cut.at-right .card { animation-name: from-right, cut-shake; }
+@keyframes cut-shake { 25% { transform: rotate(-6deg) scale(1.08); } 60% { transform: rotate(4deg) scale(1.04); } }
