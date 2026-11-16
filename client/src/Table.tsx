@@ -338,32 +338,29 @@ function Opponent(props: {
   );
 }
 
-/** Large trump indicator in the top corner of the table. */
+/** Trump indicator in the bottom-right corner of the table, clear of the players' names. */
 function TrumpPanel({ g, seatName, isBidder }: { g: PlayerView; seatName: (s: Seat) => string; isBidder: boolean }) {
   if (g.bidder === null || (!g.trumpCard && !g.hasHiddenTrump)) return null;
   const revealed = g.trumpRevealed && g.trumpSuit && g.trumpCard;
+  const card = revealed || (isBidder && g.trumpCard) ? <CardFace card={g.trumpCard!} small /> : <CardBack small label="?" />;
   return (
     <div className={`trump-panel${revealed ? ' revealed' : ''}`} key={revealed ? 'shown' : 'hidden'}>
-      <div className="trump-panel-label">തുറുപ്പ്</div>
-      {revealed ? (
-        <>
-          <CardFace card={g.trumpCard!} small />
-          <div className={`trump-suit ${g.trumpSuit === 'H' || g.trumpSuit === 'D' ? 'red' : ''}`}>
-            {SUIT_SYMBOLS[g.trumpSuit!]} {SUIT_NAMES[g.trumpSuit!]}
-          </div>
-          {g.revealedBy !== null && <div className="muted small">asked by {seatName(g.revealedBy)}</div>}
-        </>
-      ) : isBidder && g.trumpCard ? (
-        <>
-          <CardFace card={g.trumpCard} small />
+      {card}
+      <div className="trump-info">
+        <div className="trump-panel-label">തുറുപ്പ്</div>
+        {revealed ? (
+          <>
+            <div className={`trump-suit ${g.trumpSuit === 'H' || g.trumpSuit === 'D' ? 'red' : ''}`}>
+              {SUIT_SYMBOLS[g.trumpSuit!]} {SUIT_NAMES[g.trumpSuit!]}
+            </div>
+            {g.revealedBy !== null && <div className="muted small">asked by {seatName(g.revealedBy)}</div>}
+          </>
+        ) : isBidder && g.trumpCard ? (
           <div className="muted small">hidden · only you know</div>
-        </>
-      ) : (
-        <>
-          <CardBack small label="?" />
+        ) : (
           <div className="muted small">hidden by {seatName(g.bidder)}</div>
-        </>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -408,9 +405,9 @@ function Prompt({
   }
   switch (g.phase) {
     case 'bidding1':
-      return <span>Your bid. {g.canPass ? 'Bid higher or pass.' : `You open the bidding (at least ${g.minBid}).`}</span>;
+      return <span>Your bid (one turn each). {g.canPass ? 'Bid higher or pass.' : `You open the bidding (at least ${g.minBid}).`}</span>;
     case 'bidding2':
-      return <span>All 8 cards dealt. Raise to {g.minBid ?? 24}+ or pass.</span>;
+      return g.minBid !== null ? <span>All 8 cards dealt. Bid 28 to take every point, or pass.</span> : <span>All 8 cards dealt. Nobody can bid higher, so pass.</span>;
     case 'chooseTrump':
     case 'chooseTrump2':
       return <span>You won the bid. Pick a card: its suit becomes തുറുപ്പ് and it stays face down.</span>;

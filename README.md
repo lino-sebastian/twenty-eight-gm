@@ -49,9 +49,9 @@ npm run typecheck
 
 - 4 players in 2 fixed partnerships; partners sit opposite. Play passes anticlockwise.
 - 32 cards. Rank in every suit: J, 9, A, 10, K, Q, 8, 7. Points: J = 3, 9 = 2, A = 1, 10 = 1 (28 in total).
-- **Deal and bidding:** 4 cards each, then bidding. The player on the dealer's right must open at 14 or more (room setting: 14, 15 or 16). Each bid must be higher, or pass; bidding ends after 3 passes in a row. Overcalling your own partner needs at least 20.
+- **Deal and bidding:** 4 cards each, then bidding. The player on the dealer's right must open at 14 or more (room setting: 14, 15 or 16). Each player gets one turn to bid higher or pass, and the highest bid wins. Overcalling your own partner needs at least 20.
 - **Trump:** the winning bidder places one card face down; its suit is trump. Then 4 more cards each.
-- **Second round:** after seeing all 8 cards, anyone may raise to 24 or more. A raiser picks a new face-down trump card and the old one goes back.
+- **Second round:** after seeing all 8 cards, each player may bid 28 (all the points) or pass. A player who bids 28 picks a new face-down trump card and the old one goes back.
 - **Play:** the player on the dealer's right leads. You must follow suit if you can. If you can't, either discard or **ask for trump**: the hidden card is shown, and you must play a trump if you have one. Before the reveal, no card counts as trump; trumps played before the reveal never count.
 - The bidder may not lead the trump suit before the reveal unless they hold nothing else, and when they can't follow suit they either discard a non-trump card or reveal trump and play one.
 - **Redeals:** a player dealt all four Jacks, the bidding side holding all 8 trumps, or the opening bidder holding no point cards (their choice).

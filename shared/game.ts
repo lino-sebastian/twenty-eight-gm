@@ -23,14 +23,14 @@ export const DEFAULT_SETTINGS: Settings = { minBid: 14, targetScore: 6, lastTric
 
 /** You must bid at least this much to overcall your own partner in the first round. */
 export const PARTNER_OVERCALL_MIN = 20;
-/** Any raise in the second bidding round must be at least this much. */
-export const SECOND_ROUND_MIN = 24;
+/** After all 8 cards are dealt, the only bid allowed is 28 (the whole deck). */
+export const SECOND_ROUND_MIN = 28;
 export const MAX_BID = 28;
 
 export type Phase =
-  | 'bidding1' // 4 cards each, first bidding round
+  | 'bidding1' // 4 cards each: one turn each to bid or pass
   | 'chooseTrump' // final bidder of round 1 puts a trump card face down
-  | 'bidding2' // 8 cards each, optional raise to 24+
+  | 'bidding2' // 8 cards each: anyone may bid 28, once round the table
   | 'chooseTrump2' // a round 2 raiser picks a new trump card
   | 'playing'
   | 'handOver'
@@ -386,6 +386,13 @@ export function applyAction(state: MatchState, seat: Seat, action: Action, rng: 
         } else finishBidding2(m);
         return m;
       }
+      if (round === 1 && h.bids.length === 4) {
+        // Everyone has had their one turn: the highest bid wins.
+        h.bidder = h.highBid.seat;
+        h.phase = 'chooseTrump';
+        h.turn = h.bidder;
+        return m;
+      }
       h.turn = nextSeat(seat);
       return m;
     }
@@ -396,7 +403,7 @@ export function applyAction(state: MatchState, seat: Seat, action: Action, rng: 
       h.bids.push({ seat, amount: null, round });
       h.passesInRow++;
       m.notice = null;
-      if (round === 1 && h.passesInRow === 3) {
+      if (round === 1 && h.bids.length === 4) {
         h.bidder = h.highBid!.seat;
         h.phase = 'chooseTrump';
         h.turn = h.bidder;

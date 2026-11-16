@@ -82,7 +82,18 @@ describe('bidding', () => {
     expect(m.hand.highBid).toEqual({ seat: 2, amount: 20 });
   });
 
-  it('ends after three passes, then second round needs 24', () => {
+  it('ends after one turn each, even when the last player bids', () => {
+    let m = setup();
+    m = act(m, 0, { type: 'bid', amount: 14 });
+    m = act(m, 1, { type: 'bid', amount: 15 });
+    m = act(m, 2, { type: 'bid', amount: 16 });
+    m = act(m, 3, { type: 'bid', amount: 20 });
+    expect(m.hand.phase).toBe('chooseTrump');
+    expect(m.hand.bidder).toBe(3);
+    expect(m.hand.turn).toBe(3);
+  });
+
+  it('gives each player one turn, then the second round only allows 28', () => {
     let m = setup();
     m = act(m, 0, { type: 'bid', amount: 16 });
     m = act(m, 1, { type: 'pass' });
@@ -94,7 +105,8 @@ describe('bidding', () => {
     expect(m.hand.phase).toBe('bidding2');
     expect(m.hand.hands[0]).toHaveLength(7);
     expect(m.hand.hands[1]).toHaveLength(8);
-    expect(minBidFor(m, 0)).toBe(24);
+    expect(minBidFor(m, 0)).toBe(28);
+    expect(() => act(m, 0, { type: 'bid', amount: 24 })).toThrow(GameError);
     for (const s of [0, 1, 2, 3]) m = act(m, s, { type: 'pass' });
     expect(m.hand.phase).toBe('playing');
     expect(m.hand.turn).toBe(0);
@@ -106,8 +118,8 @@ describe('bidding', () => {
     for (const s of [1, 2, 3]) m = act(m, s, { type: 'pass' });
     m = act(m, 0, { type: 'chooseTrump', cardId: 'AS' });
     m = act(m, 0, { type: 'pass' });
-    m = act(m, 1, { type: 'bid', amount: 24 });
-    for (const s of [2, 3, 0]) m = act(m, s, { type: 'pass' });
+    m = act(m, 1, { type: 'bid', amount: 28 });
+    // 28 cannot be beaten, so the round ends at once.
     expect(m.hand.phase).toBe('chooseTrump2');
     expect(m.hand.bidder).toBe(1);
     expect(m.hand.hands[0]).toHaveLength(8); // AS returned
