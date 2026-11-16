@@ -6,7 +6,7 @@ import { CardBack, CardFace } from './cards';
 import { ack } from './Lobby';
 import { socket } from './socket';
 import { VoiceControls, useVoice } from './voice';
-import { playCardDown, playDeal, playSwordSwing, setSoundEnabled, soundEnabled } from './sound';
+import { playCardDown, playDeal, playSwordSwing, playVanish, setSoundEnabled, soundEnabled } from './sound';
 
 type Pos = 'bottom' | 'right' | 'top' | 'left';
 const POSITIONS: Pos[] = ['bottom', 'right', 'top', 'left'];
@@ -381,7 +381,10 @@ function useShownTrick(g: PlayerView): ShownTrick {
     }
     setHold({ trick, collecting: false });
     timers.current.push(
-      window.setTimeout(() => setHold({ trick, collecting: true }), TRICK_HOLD_MS - TRICK_COLLECT_MS),
+      window.setTimeout(() => {
+        setHold({ trick, collecting: true });
+        playVanish();
+      }, TRICK_HOLD_MS - TRICK_COLLECT_MS),
       window.setTimeout(() => setHold(null), TRICK_HOLD_MS),
     );
   }, [count, g.handNumber]);

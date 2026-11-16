@@ -132,3 +132,28 @@ export function playSwordSwing() {
   // Metallic scrape at the moment of impact.
   noiseBurst(ac, ring, 0.12, { type: 'highpass', from: 5000, q: 0.5 }, 0.25);
 }
+
+/** A light, airy vanish as a finished trick is swept away. */
+export function playVanish() {
+  const ac = audio();
+  if (!ac) return;
+  const at = ac.currentTime;
+  // Soft breathy swoosh that falls away.
+  noiseBurst(ac, at, 0.45, { type: 'bandpass', from: 3200, to: 700, q: 0.9 }, 0.18);
+  // A gentle glassy shimmer gliding upwards, like something disappearing.
+  [0, 0.06, 0.12].forEach((offset, i) => {
+    const o = ac.createOscillator();
+    o.type = 'sine';
+    const t = at + offset;
+    const base = 1318 * Math.pow(1.26, i);
+    o.frequency.setValueAtTime(base, t);
+    o.frequency.exponentialRampToValueAtTime(base * 1.6, t + 0.35);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38);
+    o.connect(g).connect(ac.destination);
+    o.start(t);
+    o.stop(t + 0.4);
+  });
+}
