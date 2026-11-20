@@ -65,7 +65,10 @@ export function Lobby({
     const initial = s.kind === 'human' ? s.name.trim().charAt(0).toUpperCase() || '?' : '';
     return (
       <div key={seat} className={`seat-tile seat-${seat} team-${seat % 2}${mine ? ' mine' : ''}${s.kind === 'empty' ? ' empty' : ''}`}>
-        <div className={`avatar${offline ? ' offline' : ''}`}>{s.kind === 'bot' ? '🤖' : s.kind === 'human' ? initial : '+'}</div>
+        <div className="chair-wrap">
+          <Chair facing={(['up', 'left', 'down', 'right'] as const)[seat]} team={seat % 2} />
+          {s.kind !== 'empty' && <div className={`avatar${offline ? ' offline' : ''}`}>{s.kind === 'bot' ? '🤖' : initial}</div>}
+        </div>
         <div className="seat-body">
           <div className="seat-name">
             {s.kind === 'empty' ? <span className="muted">Open seat</span> : s.kind === 'bot' ? s.name : s.name}
@@ -161,9 +164,11 @@ export function Lobby({
         <div className="team-chips">
           {[0, 1].map((t) => (
             <div key={t} className={`team-chip team-${t}`}>
-              <span className="dot" />
+              <div className="team-chip-top">
+                <span className="team-badge">Team {t === 0 ? 'A' : 'B'}</span>
+                <span className="team-seats">Seats {t + 1} & {t + 3}</span>
+              </div>
               <TeamName team={t as 0 | 1} name={room.teamNames[t]} editable={canEditTeam(t)} onError={onError} />
-              <span className="muted small">seats {t + 1} & {t + 3}</span>
             </div>
           ))}
         </div>
@@ -236,21 +241,61 @@ function TeamName({ team, name, editable, onError }: { team: 0 | 1; name: string
     if (draft !== null && draft.trim() && draft.trim() !== name) socket.emit('setTeamName', { team, name: draft }, ack(onError));
     setDraft(null);
   };
-  if (!editable) return <h2 className="team-title">{name}</h2>;
+  if (draft !== null)
+    return (
+      <input
+        className="team-name-input"
+        aria-label={`Name of team ${team === 0 ? 'A' : 'B'}`}
+        value={draft}
+        maxLength={24}
+        autoFocus
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') setDraft(null);
+        }}
+      />
+    );
   return (
-    <input
-      className="team-title-input"
-      aria-label={`Name of team ${team + 1}`}
-      value={draft ?? name}
-      maxLength={24}
-      onFocus={(e) => e.target.select()}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={save}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-        if (e.key === 'Escape') setDraft(null);
-      }}
-      title="Click to rename your team"
-    />
+    <div className="team-name-row">
+      <span className="team-name">{name}</span>
+      {editable && (
+        <button type="button" className="icon-btn" onClick={() => setDraft(name)} title="Rename team" aria-label="Rename team">
+          ✎
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * A modern lounge chair seen from above, with its back away from the table.
+ * `facing` is the direction the person sitting in it looks (towards the table).
+ */
+function Chair({ facing, team }: { facing: 'up' | 'down' | 'left' | 'right'; team: number }) {
+  const rotate = { up: 0, right: 90, down: 180, left: 270 }[facing];
+  const [light, dark] = team === 0 ? ['#b9e4ff', '#3f87b5'] : ['#ffd2b8', '#c46a3c'];
+  const id = `chair-seat-${facing}`;
+  return (
+    <svg className="chair" viewBox="0 0 100 100" aria-hidden style={{ transform: `rotate(${rotate}deg)` }}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={light} />
+          <stop offset="1" stopColor={dark} />
+        </linearGradient>
+      </defs>
+      {/* soft shadow */}
+      <ellipse cx="50" cy="56" rx="40" ry="38" fill="rgba(0,0,0,0.28)" />
+      {/* backrest (curved shell, away from the table) */}
+      <path d="M14 66 Q14 92 50 92 Q86 92 86 66 L80 62 Q78 82 50 82 Q22 82 20 62 Z" fill={dark} />
+      {/* arms */}
+      <rect x="10" y="30" width="12" height="40" rx="6" fill={dark} />
+      <rect x="78" y="30" width="12" height="40" rx="6" fill={dark} />
+      {/* cushion */}
+      <rect x="22" y="20" width="56" height="58" rx="16" fill={`url(#${id})`} />
+      <rect x="27" y="25" width="46" height="10" rx="5" fill="rgba(255,255,255,0.18)" />
+    </svg>
   );
 }

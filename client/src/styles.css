@@ -452,3 +452,42 @@ button:active:not(:disabled) { transform: scale(0.96); }
 }
 
 .bot-in { font-size: 0.7rem !important; padding: 2px 8px !important; margin-top: 2px; }
+
+/* Lobby v2: standard team labels and chairs */
+.team-chip { flex-direction: column; align-items: stretch; gap: 4px; padding: 10px 12px; border: 1px solid rgba(255, 255, 255, 0.14); border-top: 3px solid var(--team); }
+.team-chip-top { display: flex; justify-content: space-between; align-items: center; }
+.team-badge {
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase;
+  color: #10261a; background: var(--team); border-radius: 999px; padding: 1px 8px;
+}
+.team-seats { font-size: 0.75rem; color: var(--muted); }
+.team-name-row { display: flex; align-items: center; gap: 6px; min-height: 30px; }
+.team-name { font-size: 1.1rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-name-input { font-size: 1.05rem; font-weight: 700; padding: 3px 8px; width: 100%; border-radius: 8px; border-color: var(--team); }
+.icon-btn { padding: 0 8px; font-size: 0.9rem; border-radius: 999px; line-height: 1.6; opacity: 0.8; }
+.icon-btn:hover { opacity: 1; }
+
+.seat-tile { flex-direction: column; text-align: center; gap: 6px; background: transparent; border: none; border-left: none; padding: 6px; }
+.seat-tile.empty { background: transparent; border: none; }
+.seat-tile.mine { box-shadow: none; }
+.seat-tile.mine .chair-wrap::after {
+  content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--accent); animation: glow 2s ease-in-out infinite;
+}
+.seat-tile .seat-body { width: 100%; }
+.seat-tile .seat-name, .seat-tile .seat-tags, .seat-tile .seat-actions { justify-content: center; }
+.chair-wrap { position: relative; width: 96px; height: 96px; display: grid; place-items: center; }
+.team-0 .chair-wrap { --chair-light: #b9e4ff; --chair-dark: #3f87b5; }
+.team-1 .chair-wrap { --chair-light: #ffd2b8; --chair-dark: #c46a3c; }
+.seat-tile.empty .chair-wrap { opacity: 0.55; }
+.chair { position: absolute; inset: 0; width: 100%; height: 100%; transition: transform 0.2s ease; }
+.seat-tile:not(.empty):hover .chair { filter: brightness(1.08); }
+.chair-wrap .avatar {
+  position: relative; z-index: 1; width: 40px; height: 40px; border: 3px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35); background: #fff; color: #10261a; animation: sit 0.35s ease both;
+}
+@keyframes sit { from { transform: translateY(-14px) scale(0.8); opacity: 0; } }
+@media (max-width: 600px) {
+  .chair-wrap { width: 70px; height: 70px; }
+  .chair-wrap .avatar { width: 34px; height: 34px; }
+  .seat-tile.seat-2, .seat-tile.seat-0 { max-width: none; }
+}
