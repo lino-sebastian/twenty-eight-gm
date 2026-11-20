@@ -7,9 +7,9 @@ import { useEffect, useRef, useState } from 'react';
  * the first tap or click, and each visitor's on/off choice is remembered.
  */
 export const LOBBY_MUSIC_URL = '/music/lobby.mp3';
-// The file itself is mixed about 14 dB quieter (iPhones ignore the volume setting), and
+// The file itself is mixed about 20 dB quieter (iPhones ignore the volume setting), and
 // browsers that do honour it turn it down further.
-const VOLUME = 0.4;
+const VOLUME = 0.3;
 
 function readPref(): boolean {
   try {
