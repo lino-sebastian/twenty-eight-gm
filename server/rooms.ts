@@ -182,20 +182,37 @@ export class RoomManager {
     this.broadcast(room);
   }
 
+  /**
+   * Any player in the room can bring in a bot, at any stage:
+   * - lobby: an empty seat, or the seat of a player who has gone offline;
+   * - during a game: a bot takes over straight away for a player who has gone offline.
+   */
   addBot(socketId: string, seat: Seat) {
-    const { room } = this.requireHost(socketId);
-    this.requireLobby(room);
-    if (room.seats[seat] !== null) throw new RoomError('That seat is taken.');
+    const { room } = this.ctx(socketId);
+    const o = room.seats[seat];
+    const offlineHuman = o?.kind === 'human' && (room.players.get(o.playerId)?.socketIds.size ?? 0) === 0;
+    if (o?.kind === 'bot') throw new RoomError('A bot is already in that seat.');
+    if (o?.kind === 'human' && !offlineHuman) throw new RoomError(`${room.players.get(o.playerId)?.name ?? 'That player'} is still connected.`);
+    if (room.match) {
+      if (!o) throw new RoomError('That seat is empty.');
+      room.botPlaying.add(seat);
+      this.broadcast(room);
+      this.schedule(room);
+      return;
+    }
     room.seats[seat] = { kind: 'bot', name: BOT_NAMES[seat] };
     this.broadcast(room);
   }
 
   clearSeat(socketId: string, seat: Seat) {
-    const { room } = this.requireHost(socketId);
+    const { room, isHost } = this.ctx(socketId);
     this.requireLobby(room);
+    // Anyone can remove a bot; only the host can move a person to the watchers.
+    if (room.seats[seat]?.kind === 'human' && !isHost) throw new RoomError('Only the host can move a player.');
     room.seats[seat] = null;
     this.broadcast(room);
   }
+
 
   updateSettings(socketId: string, patch: Partial<Settings>) {
     const { room } = this.requireHost(socketId);

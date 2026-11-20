@@ -74,6 +74,9 @@ npm run typecheck
 - **Voice chat:** press **Join voice** in the lobby or at the table, then mute or leave whenever you like. Voice goes directly between browsers (WebRTC); the server only helps them connect. Players on very strict networks may not be able to connect without a TURN relay server.
 - **Pacing:** each finished trick stays on the table for about 4.5 seconds and slides to the winner. After each hand the result and a celebration stay up until any player presses **Start next hand**.
 
+- **Lobby music:** add an audio file at `client/public/music/lobby.mp3`, commit it, and it plays in the lobby on a loop with a Music on/off button. It fades out when the game starts. Only add music you have the rights to use, since the file is published with the app.
+- **Bots at any stage:** anyone in the room can put a bot in an open seat, replace a player who has gone offline, or (during a game) press **Let a bot play** for an offline player instead of waiting 60 seconds.
+
 ## How rooms work
 
 - Rooms have a 5-letter code and an invite link like `/r/ABCDE`. No accounts; players just enter a name.

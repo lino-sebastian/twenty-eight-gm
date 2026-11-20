@@ -156,6 +156,11 @@ export function Table({
               status={statusOf(room.seats[s])}
               team={s % 2}
               voice={inVoice(s)}
+              onBot={
+                room.seats[s].kind === 'human' && !(room.seats[s] as { connected: boolean }).connected && !(room.seats[s] as { botPlaying: boolean }).botPlaying
+                  ? () => socket.emit('addBot', { seat: s }, ack(onError))
+                  : undefined
+              }
             />
           ))}
 
@@ -421,6 +426,7 @@ function Opponent(props: {
   status: string | null;
   team: number;
   voice: boolean;
+  onBot?: () => void;
 }) {
   return (
     <div className={`opponent at-${props.pos}${props.active ? ' active' : ''}`}>
@@ -438,6 +444,11 @@ function Opponent(props: {
         )}
       </div>
       {props.status && <div className="muted small">{props.status}</div>}
+      {props.onBot && (
+        <button type="button" className="small-btn bot-in" onClick={props.onBot} title="Let a bot play until they come back">
+          🤖 Let a bot play
+        </button>
+      )}
       <div className="opp-cards">
         {props.count > 0 && <CardBack mini label={String(props.count)} />}
         {props.hiddenTrump && <CardBack mini label="തു" />}

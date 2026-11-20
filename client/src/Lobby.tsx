@@ -3,6 +3,7 @@ import type { Seat } from '../../shared/game';
 import type { StatePayload } from '../../shared/protocol';
 import { socket } from './socket';
 import { VoiceControls, useVoice } from './voice';
+import { LobbyMusic } from './music';
 
 export function ack(onError: (m: string) => void) {
   return (res: { ok: boolean; error?: string }) => {
@@ -55,72 +56,94 @@ export function Lobby({
     }
   };
 
-  const seatCard = (seat: Seat) => {
+  const canEditTeam = (t: number) => you.isHost || (you.seat !== null && you.seat % 2 === t);
+
+  const seatTile = (seat: Seat) => {
     const s = room.seats[seat];
     const mine = s.kind === 'human' && s.playerId === you.id;
+    const offline = s.kind === 'human' && !s.connected;
+    const initial = s.kind === 'human' ? s.name.trim().charAt(0).toUpperCase() || '?' : '';
     return (
-      <div key={seat} className={`seat-card team-${seat % 2}${mine ? ' mine' : ''}`}>
-        <div className="seat-label">Seat {seat + 1}</div>
-        {s.kind === 'empty' && (
-          <>
-            <div className="seat-name muted">Empty</div>
-            <div className="seat-actions">
-              <button onClick={() => socket.emit('sit', { seat }, ack(onError))}>Sit here</button>
-              {you.isHost && <button onClick={() => socket.emit('addBot', { seat }, ack(onError))}>Add bot</button>}
-            </div>
-          </>
-        )}
-        {s.kind === 'bot' && (
-          <>
-            <div className="seat-name">🤖 {s.name}</div>
-            {you.isHost && (
-              <div className="seat-actions">
-                <button onClick={() => socket.emit('clearSeat', { seat }, ack(onError))}>Remove</button>
-              </div>
+      <div key={seat} className={`seat-tile seat-${seat} team-${seat % 2}${mine ? ' mine' : ''}${s.kind === 'empty' ? ' empty' : ''}`}>
+        <div className={`avatar${offline ? ' offline' : ''}`}>{s.kind === 'bot' ? '🤖' : s.kind === 'human' ? initial : '+'}</div>
+        <div className="seat-body">
+          <div className="seat-name">
+            {s.kind === 'empty' ? <span className="muted">Open seat</span> : s.kind === 'bot' ? s.name : s.name}
+            {mine && <span className="you-pill">you</span>}
+          </div>
+          <div className="seat-tags">
+            <span className="muted">Seat {seat + 1}</span>
+            {s.kind === 'human' && room.hostId === s.playerId && <span className="tag">host</span>}
+            {s.kind === 'human' && room.voice.includes(s.playerId) && <span className="tag voice">🎤</span>}
+            {offline && <span className="tag warn">offline</span>}
+          </div>
+          <div className="seat-actions">
+            {s.kind === 'empty' && (
+              <>
+                <button type="button" onClick={() => socket.emit('sit', { seat }, ack(onError))}>
+                  Sit
+                </button>
+                <button type="button" onClick={() => socket.emit('addBot', { seat }, ack(onError))}>
+                  + Bot
+                </button>
+              </>
             )}
-          </>
-        )}
-        {s.kind === 'human' && (
-          <>
-            <div className="seat-name">
-              {s.name}
-              {mine && ' (you)'}
-              {room.hostId === s.playerId && <span className="tag">host</span>}
-              {room.voice.includes(s.playerId) && <span className="tag voice" title="In voice chat">🎤</span>}
-              {!s.connected && <span className="tag warn">offline</span>}
-            </div>
-            <div className="seat-actions">
-              {mine && <button onClick={() => socket.emit('standUp', ack(onError))}>Stand up</button>}
-              {!mine && you.isHost && <button onClick={() => socket.emit('clearSeat', { seat }, ack(onError))}>Move to watchers</button>}
-            </div>
-          </>
-        )}
+            {s.kind === 'bot' && (
+              <button type="button" onClick={() => socket.emit('clearSeat', { seat }, ack(onError))}>
+                Remove
+              </button>
+            )}
+            {mine && (
+              <button type="button" onClick={() => socket.emit('standUp', ack(onError))}>
+                Stand up
+              </button>
+            )}
+            {offline && (
+              <button type="button" onClick={() => socket.emit('addBot', { seat }, ack(onError))}>
+                Replace with bot
+              </button>
+            )}
+            {s.kind === 'human' && !mine && !offline && you.isHost && (
+              <button type="button" onClick={() => socket.emit('clearSeat', { seat }, ack(onError))}>
+                To watchers
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   };
 
+  const seated = room.seats.filter((s) => s.kind !== 'empty').length;
+
   return (
     <main className="lobby">
-      <header className="lobby-head">
-        <div>
-          <div className="muted">Room code</div>
-          <div className="room-code">{room.code}</div>
+      <header className="lobby-hero">
+        <div className="hero-left">
+          <div className="hero-logo">28</div>
+          <div>
+            <div className="hero-kicker">Game room</div>
+            <button type="button" className="room-code" onClick={() => copy('code')} title="Copy room code">
+              {room.code}
+              <span className="copy-hint">{copied === 'code' ? '✓ copied' : 'copy'}</span>
+            </button>
+          </div>
         </div>
-        <div className="row">
+        <div className="hero-actions">
+          <LobbyMusic />
           <VoiceControls voice={voice} count={room.voice.length} />
-          <button onClick={onLeave}>Leave</button>
+          <button type="button" className="small-btn" onClick={onLeave}>
+            Leave
+          </button>
         </div>
       </header>
 
-      <section className="panel invite">
-        <h2>Invite players</h2>
+      <section className="glass invite">
+        <div className="glass-title">Invite friends</div>
         <div className="invite-row">
           <code className="invite-link">{link}</code>
           <button type="button" className="primary" onClick={() => copy('link')}>
             {copied === 'link' ? '✓ Copied' : 'Copy link'}
-          </button>
-          <button type="button" onClick={() => copy('code')}>
-            {copied === 'code' ? '✓ Copied' : 'Copy code'}
           </button>
           {canShare && (
             <button type="button" onClick={share}>
@@ -130,29 +153,34 @@ export function Lobby({
         </div>
       </section>
 
-      <div className="teams">
-        {[0, 1].map((t) => (
-          <section key={t} className={`team team-${t}`}>
-            <TeamName
-              team={t as 0 | 1}
-              name={room.teamNames[t]}
-              editable={you.isHost || (you.seat !== null && you.seat % 2 === t)}
-              onError={onError}
-            />
-            <p className="muted small">Partners sit opposite each other.{(you.isHost || (you.seat !== null && you.seat % 2 === t)) && " Tap the name to rename the team."}</p>
-            {([t, t + 2] as Seat[]).map(seatCard)}
-          </section>
-        ))}
-      </div>
+      <section className="glass">
+        <div className="glass-title row-between">
+          <span>Seats</span>
+          <span className="muted small">{seated}/4 ready</span>
+        </div>
+        <div className="team-chips">
+          {[0, 1].map((t) => (
+            <div key={t} className={`team-chip team-${t}`}>
+              <span className="dot" />
+              <TeamName team={t as 0 | 1} name={room.teamNames[t]} editable={canEditTeam(t)} onError={onError} />
+              <span className="muted small">seats {t + 1} & {t + 3}</span>
+            </div>
+          ))}
+        </div>
+        <div className="seat-map">
+          <div className="mini-table" aria-hidden>
+            <span>28</span>
+          </div>
+          {([0, 1, 2, 3] as Seat[]).map(seatTile)}
+        </div>
+        <p className="muted small center">Partners sit opposite each other. Play passes to the right. Anyone can add a bot to an open seat.</p>
+        {watchers.length > 0 && (
+          <p className="muted small center">Watching: {watchers.map((w) => w.name + (w.connected ? '' : ' (offline)')).join(', ')}</p>
+        )}
+      </section>
 
-      {watchers.length > 0 && (
-        <p className="muted">
-          Watching: {watchers.map((w) => w.name + (w.connected ? '' : ' (offline)')).join(', ')}
-        </p>
-      )}
-
-      <section className="panel settings">
-        <h2>Rules for this room</h2>
+      <details className="glass settings" open={you.isHost}>
+        <summary className="glass-title">Rules for this room</summary>
         <label className="field inline">
           Minimum opening bid
           <select
@@ -187,15 +215,17 @@ export function Lobby({
           1 extra point for the last trick
         </label>
         {!you.isHost && <p className="muted small">Only the host can change the rules.</p>}
-      </section>
+      </details>
 
-      {you.isHost ? (
-        <button className="primary big" disabled={!full} onClick={() => socket.emit('startGame', ack(onError))}>
-          {full ? 'Start game' : 'Fill all 4 seats to start'}
-        </button>
-      ) : (
-        <p className="muted center">Waiting for the host to start the game…</p>
-      )}
+      <div className="start-bar">
+        {you.isHost ? (
+          <button type="button" className="primary big start-btn" disabled={!full} onClick={() => socket.emit('startGame', ack(onError))}>
+            {full ? 'Deal the cards ▶' : `Waiting for ${4 - seated} more (or add bots)`}
+          </button>
+        ) : (
+          <p className="muted center waiting">Waiting for the host to start the game…</p>
+        )}
+      </div>
     </main>
   );
 }
