@@ -270,8 +270,12 @@ const STEPS: Step[] = [
           <b>cutting</b> the trick. In the app you'll hear a sword swing! ⚔️
         </p>
         <p>
-          You win the trick, with J♥ 3 + 9♥ 2 = 5 points. Trumps only count from the moment they are revealed. A {TRUMP}-suit card played
-          before that is just an ordinary card.
+          You win the trick, with J♥ 3 + 9♥ 2 = 5 points.
+        </p>
+        <p>
+          Two cards of the <b>same suit</b> always compare by rank. So if the {TRUMP} turns out to be the suit that was led, a J♥ led before
+          the reveal still beats a Q♥ played after it. A {TRUMP}-suit card that was <i>discarded</i> before the reveal, on a different suit,
+          can't cut.
         </p>
       </>
     ),
@@ -378,7 +382,7 @@ const NARRATION: string[] = [
   "The player on the dealer's right leads any card, and everyone plays one card in turn. You must follow the suit that was led if you can. The highest card of that suit wins the trick and its points. Here Biju led the 10 of diamonds, and your Jack of diamonds wins. That is 4 points for your team.",
   "Clubs are led, and you still have clubs in your hand. Because you have them, you must play one. The app makes this easy: only the cards you are allowed to play glow gold, and the rest are greyed out.",
   "If you have no card of the led suit, you have two choices. You can throw away any card, or you can ask for the {T}. Then the bidder must reveal the face down card, and you must play a {T} card if you have one. Here hearts are led, you have none, so you ask. The {T} is revealed: it is spades.",
-  "Once the {T} is revealed, any {T} card beats every card of the other suits. Even your small 8 of spades beats Arun's Jack of hearts. This is called cutting the trick, and in the app you will hear a sword swing! You win 5 points.",
+  "Once the {T} is revealed, any {T} card beats every card of the other suits. Even your small 8 of spades beats Arun's Jack of hearts. This is called cutting the trick, and in the app you will hear a sword swing! You win 5 points. One more thing: two cards of the same suit always compare by rank. So if the {T} turns out to be the suit that was led, a Jack led before the reveal still beats a Queen played after it.",
   "Until the {T} is revealed, the bidder has two limits. They cannot lead the {T} suit unless they have nothing else. And if they cannot follow suit, they either throw away a card of another suit, or reveal the {T} themselves and play one.",
   "After all 8 tricks, the bidder's team counts its points. If they reach their bid, they score game points: 1 for a bid up to 19, 2 for a bid from 20 to 24, and 3 for 25 or more. If they fall short, the other team scores one point more than that. Meera bid 17, so if Team A wins 17 points or more, they get 1 game point. Otherwise Team B gets 2. The first team to reach the target, usually 6, wins the match.",
   "That's it! Remember: Jack, 9, Ace, 10 are the cards to win. Follow suit if you can. If you can't, throw away a card or ask for the {T}. And feed points to your partner when they are winning a trick. You can practise against bots by adding them to the empty seats. Have fun!",
