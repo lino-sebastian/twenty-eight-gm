@@ -133,6 +133,9 @@ export function Lobby({
           </div>
         </div>
         <div className="hero-actions">
+          <a className="how-link" href="/how-to-play" target="_blank" rel="noopener" title="Opens in a new tab, so you keep your seat">
+            📖 How to play
+          </a>
           <LobbyMusic />
           <VoiceControls voice={voice} count={room.voice.length} />
           <button type="button" className="small-btn" onClick={onLeave}>

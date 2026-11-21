@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { StatePayload } from '../../shared/protocol';
 import { Lobby } from './Lobby';
 import { Table } from './Table';
+import { Tutorial } from './Tutorial';
 import { playerToken, saveName, savedName, socket } from './socket';
 import { useVoice } from './voice';
 
@@ -13,6 +14,11 @@ function codeFromUrl(): string | null {
 }
 
 export function App() {
+  if (window.location.pathname.replace(/\/+$/, '') === '/how-to-play') return <Tutorial />;
+  return <GameApp />;
+}
+
+function GameApp() {
   const [name, setName] = useState(savedName());
   const [joinCode, setJoinCode] = useState(codeFromUrl() ?? '');
   const [state, setState] = useState<StatePayload | null>(null);
@@ -186,6 +192,11 @@ function Home(props: {
             </button>
           </div>
         </section>
+      </div>
+      <div className="home-how">
+        <a className="how-link" href="/how-to-play">
+          📖 New to 28? Learn how to play
+        </a>
       </div>
     </main>
   );
