@@ -11,6 +11,7 @@ import {
   DEFAULT_SETTINGS,
   viewFor,
   GameError,
+  trickWinner,
 } from '../shared/game';
 import { chooseBotAction } from '../shared/bot';
 
@@ -201,6 +202,15 @@ describe('play', () => {
     expect(viewFor(m, 2).trick[2].countsAsTrump).toBe(true);
     m = act(m, 0, { type: 'play', cardId: '10H' });
     expect(m.hand.tricks[1].winner).toBe(3);
+  });
+  it('a led Jack still wins when trump turns out to be the led suit', () => {
+    // A leads JH, B has no hearts and asks for trump: it is hearts. B discards 8S,
+    // C follows with QH (now a trump), D plays 10S. The Jack is higher, so A wins.
+    const play = (seat: Seat, id: string, countsAsTrump: boolean) => ({ seat, card: parseCard(id), countsAsTrump });
+    expect(trickWinner([play(0, 'JH', false), play(1, '8S', false), play(2, 'QH', true), play(3, '10S', false)])).toBe(0);
+    // A higher trump of the same suit still beats it, and a trump of the suit cuts other suits.
+    expect(trickWinner([play(0, '9H', false), play(1, '8S', false), play(2, 'JH', true), play(3, '10S', false)])).toBe(2);
+    expect(trickWinner([play(0, 'JD', false), play(1, '7H', true), play(2, '9D', false), play(3, 'AD', false)])).toBe(1);
   });
 });
 

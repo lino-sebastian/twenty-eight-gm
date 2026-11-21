@@ -1,5 +1,5 @@
 import { Card, POINTS, SUITS, Suit, cardPoints, fullDeck, rankStrength } from './cards.js';
-import { Action, MatchState, Seat, legalPlays, minBidFor, canPass, canRequestRedeal, partnerOf, teamOf } from './game.js';
+import { Action, MatchState, Seat, legalPlays, minBidFor, canPass, canRequestRedeal, partnerOf, teamOf, winningCard } from './game.js';
 
 /** A simple rule-based player used for empty seats and for players who drop out. */
 export function chooseBotAction(m: MatchState, seat: Seat): Action | null {
@@ -90,7 +90,7 @@ function choosePlay(m: MatchState, seat: Seat): Action {
   }
 
   const led = h.trick[0].card.suit;
-  const winning = currentWinner(h.trick);
+  const winning = winningCard(h.trick);
   const partnerWinning = teamOf(winning.seat) === teamOf(seat);
   const trickPoints = cardPoints(h.trick.map((p) => p.card));
 
@@ -101,10 +101,9 @@ function choosePlay(m: MatchState, seat: Seat): Action {
 
   const beats = (c: Card) => {
     const asTrump = h.trumpRevealed && c.suit === trump;
-    if (asTrump && !winning.countsAsTrump) return true;
-    if (asTrump && winning.countsAsTrump) return rankStrength(c.rank) > rankStrength(winning.card.rank);
-    if (winning.countsAsTrump) return false;
-    return c.suit === led && rankStrength(c.rank) > rankStrength(winning.card.rank);
+    if (c.suit === winning.card.suit)
+      return (c.suit === led || asTrump || winning.countsAsTrump) && rankStrength(c.rank) > rankStrength(winning.card.rank);
+    return asTrump && !winning.countsAsTrump;
   };
 
   const isLast = h.trick.length === 3;
@@ -121,16 +120,4 @@ function choosePlay(m: MatchState, seat: Seat): Action {
     return { type: 'play', cardId: pick.id };
   }
   return { type: 'play', cardId: weakest(cards).id };
-}
-
-function currentWinner(trick: MatchState['hand']['trick']) {
-  const led = trick[0].card.suit;
-  let best = trick[0];
-  for (const p of trick.slice(1)) {
-    if (p.countsAsTrump && !best.countsAsTrump) best = p;
-    else if (p.countsAsTrump === best.countsAsTrump && p.card.suit === best.card.suit && (p.countsAsTrump || p.card.suit === led)) {
-      if (rankStrength(p.card.rank) > rankStrength(best.card.rank)) best = p;
-    }
-  }
-  return best;
 }

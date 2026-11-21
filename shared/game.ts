@@ -256,18 +256,25 @@ export function legalPlays(m: MatchState, seat: Seat): LegalPlays {
   return { cardIds: ids(hand), canCallTrump: false };
 }
 
-function trickWinner(trick: PlayedCard[]): Seat {
+export function trickWinner(trick: PlayedCard[]): Seat {
+  return winningCard(trick).seat;
+}
+
+/** The card currently winning a (possibly unfinished) trick. */
+export function winningCard(trick: PlayedCard[]): PlayedCard {
   const led = trick[0].card.suit;
   let best = trick[0];
   for (const p of trick.slice(1)) {
-    if (p.countsAsTrump && !best.countsAsTrump) best = p;
-    else if (p.countsAsTrump === best.countsAsTrump) {
-      const sameSuit = p.card.suit === best.card.suit;
-      const eligible = p.countsAsTrump || p.card.suit === led;
-      if (eligible && sameSuit && rankStrength(p.card.rank) > rankStrength(best.card.rank)) best = p;
+    if (p.card.suit === best.card.suit) {
+      // Same suit: the higher rank wins. This also covers the trump suit being the led suit, where a
+      // card led before the reveal still ranks against trumps played after it (J beats Q).
+      const eligible = p.card.suit === led || p.countsAsTrump || best.countsAsTrump;
+      if (eligible && rankStrength(p.card.rank) > rankStrength(best.card.rank)) best = p;
+    } else if (p.countsAsTrump && !best.countsAsTrump) {
+      best = p;
     }
   }
-  return best.seat;
+  return best;
 }
 
 function revealTrump(h: HandState, by: Seat) {
