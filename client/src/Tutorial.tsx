@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { parseCard, SUIT_SYMBOLS } from '../../shared/cards';
 import { CardBack, CardFace } from './cards';
 import { playCardDown, playDeal, playSwordSwing } from './sound';
@@ -363,6 +363,88 @@ const STEPS: Step[] = [
   },
 ];
 
+/**
+ * What the narrator says on each step (same order as STEPS). {T} is the regional word for
+ * trump: spoken by a Malayalam voice when the device has one, otherwise as "thuruppu".
+ */
+const NARRATION: string[] = [
+  "Welcome to 28, a card game from Kerala for four players. You play in two fixed teams, and partners sit opposite each other. Here, you and Meera are Team A. Arun and Biju are Team B. Play always passes to the right, so after you comes Arun, then Meera, then Biju.",
+  "Only 32 cards are used: Jack, 9, Ace, 10, King, Queen, 8 and 7 of each suit. The order is unusual. The Jack is the strongest card in its suit, then the 9, then the Ace, then the 10, then King, Queen, 8 and 7.",
+  "Some cards carry points. A Jack is worth 3 points, a 9 is worth 2, and an Ace or a 10 is worth 1. Kings, Queens, 8s and 7s are worth nothing. That makes 7 points in each suit, and 28 points in the whole deck. That is where the name comes from.",
+  "The dealer gives everyone 4 cards to start with. The other 4 cards come later, after the first bidding.",
+  "Looking at only 4 cards, each player gets one turn to bid, or to pass. A bid is the number of points your team promises to win, and each bid must be higher than the last. The first bid must be at least 14, and to bid over your own partner you need at least 20. Here Arun opens with 15, Meera bids 17, Biju passes, and you pass. So Meera wins the bid with 17.",
+  "The winner of the bid chooses the trump suit. In Malayalam, trump is called {T}. Meera places one of her cards face down, and its suit is the {T}. Nobody else knows which suit it is yet.",
+  "Now everyone gets 4 more cards, so each player holds 8. With all 8 cards in view, anyone may bid 28, promising to win every single point, or pass. Usually everyone passes, and play begins.",
+  "The player on the dealer's right leads any card, and everyone plays one card in turn. You must follow the suit that was led if you can. The highest card of that suit wins the trick and its points. Here Biju led the 10 of diamonds, and your Jack of diamonds wins. That is 4 points for your team.",
+  "Clubs are led, and you still have clubs in your hand. Because you have them, you must play one. The app makes this easy: only the cards you are allowed to play glow gold, and the rest are greyed out.",
+  "If you have no card of the led suit, you have two choices. You can throw away any card, or you can ask for the {T}. Then the bidder must reveal the face down card, and you must play a {T} card if you have one. Here hearts are led, you have none, so you ask. The {T} is revealed: it is spades.",
+  "Once the {T} is revealed, any {T} card beats every card of the other suits. Even your small 8 of spades beats Arun's Jack of hearts. This is called cutting the trick, and in the app you will hear a sword swing! You win 5 points.",
+  "Until the {T} is revealed, the bidder has two limits. They cannot lead the {T} suit unless they have nothing else. And if they cannot follow suit, they either throw away a card of another suit, or reveal the {T} themselves and play one.",
+  "After all 8 tricks, the bidder's team counts its points. If they reach their bid, they score game points: 1 for a bid up to 19, 2 for a bid from 20 to 24, and 3 for 25 or more. If they fall short, the other team scores one point more than that. Meera bid 17, so if Team A wins 17 points or more, they get 1 game point. Otherwise Team B gets 2. The first team to reach the target, usually 6, wins the match.",
+  "That's it! Remember: Jack, 9, Ace, 10 are the cards to win. Follow suit if you can. If you can't, throw away a card or ask for the {T}. And feed points to your partner when they are winning a trick. You can practise against bots by adding them to the empty seats. Have fun!",
+];
+
+const canSpeak = typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+
+function pickVoices() {
+  const all = canSpeak ? window.speechSynthesis.getVoices() : [];
+  const en =
+    all.find((v) => v.lang === 'en-IN') ??
+    all.find((v) => v.lang.startsWith('en') && /google|natural|samantha|daniel/i.test(v.name)) ??
+    all.find((v) => v.lang.startsWith('en')) ??
+    null;
+  const ml = all.find((v) => v.lang.toLowerCase().startsWith('ml')) ?? null;
+  return { en, ml };
+}
+
+/** Reads the narration aloud with the device's own voices (no audio files needed). */
+function useNarrator() {
+  const run = useRef(0);
+  const [, setVoicesReady] = useState(0);
+  useEffect(() => {
+    if (!canSpeak) return;
+    const onVoices = () => setVoicesReady((n) => n + 1);
+    window.speechSynthesis.addEventListener('voiceschanged', onVoices);
+    return () => {
+      window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  const stop = () => {
+    run.current++;
+    if (canSpeak) window.speechSynthesis.cancel();
+  };
+
+  const say = (text: string, onDone: () => void) => {
+    if (!canSpeak) return;
+    stop();
+    const me = run.current;
+    const { en, ml } = pickVoices();
+    // Short pieces: some browsers cut off long utterances. The Malayalam word gets a Malayalam voice when there is one.
+    const merged: { text: string; ml: boolean }[] = [];
+    (ml ? text : text.replaceAll('{T}', 'thuruppu')).split(/(\{T\})/).forEach((part) => {
+      if (part === '{T}') merged.push({ text: TRUMP, ml: true });
+      else (part.match(/[^.!?]+[.!?]*/g) ?? []).forEach((t) => t.trim() && merged.push({ text: t.trim(), ml: false }));
+    });
+    merged.forEach((p, n) => {
+      const u = new SpeechSynthesisUtterance(p.text);
+      const v = p.ml ? ml : en;
+      if (v) u.voice = v;
+      u.lang = p.ml ? (ml?.lang ?? 'ml-IN') : (en?.lang ?? 'en-IN');
+      u.rate = p.ml ? 0.85 : 0.95;
+      if (n === merged.length - 1) {
+        u.onend = () => {
+          if (run.current === me) onDone();
+        };
+      }
+      window.speechSynthesis.speak(u);
+    });
+  };
+
+  return { say, stop };
+}
+
 function TutorialTable({ scene }: { scene: Scene }) {
   if (scene.row)
     return (
@@ -461,6 +543,37 @@ export function Tutorial() {
     return Number.isInteger(n) && n >= 1 && n <= STEPS.length ? n - 1 : 0;
   });
   const step = STEPS[i];
+  const narrator = useNarrator();
+  const [listening, setListening] = useState(false);
+  const listeningRef = useRef(false);
+  const advance = useRef<number | undefined>(undefined);
+  const goRef = useRef<(n: number) => void>(() => undefined);
+
+  const narrate = (n: number) => {
+    window.clearTimeout(advance.current);
+    narrator.say(NARRATION[n], () => {
+      if (n >= STEPS.length - 1) {
+        listeningRef.current = false;
+        setListening(false);
+        return;
+      }
+      advance.current = window.setTimeout(() => goRef.current(n + 1), 1200);
+    });
+  };
+  const toggleListen = () => {
+    if (listeningRef.current) {
+      listeningRef.current = false;
+      setListening(false);
+      window.clearTimeout(advance.current);
+      narrator.stop();
+    } else {
+      listeningRef.current = true;
+      setListening(true);
+      narrate(i); // started straight from the tap, which phones require before they will speak
+    }
+  };
+  useEffect(() => () => window.clearTimeout(advance.current), []);
+
   const go = (n: number) => {
     const next = Math.max(0, Math.min(STEPS.length - 1, n));
     setI(next);
@@ -469,7 +582,9 @@ export function Tutorial() {
     if (s === 'card') playCardDown();
     if (s === 'sword') window.setTimeout(playSwordSwing, 150);
     window.history.replaceState(null, '', `/how-to-play?step=${next + 1}`);
+    if (listeningRef.current) narrate(next);
   };
+  goRef.current = go;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') go(i + 1);
@@ -483,9 +598,19 @@ export function Tutorial() {
     <main className="tutorial">
       <header className="tut-head">
         <a className="tut-back" href="/">
-          ← 28 Card Game
+          ← Home
         </a>
         <h1>How to play 28</h1>
+        {canSpeak && (
+          <button type="button" className={`tut-listen${listening ? ' on' : ''}`} onClick={toggleListen}>
+            <span className="eq" aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+            {listening ? 'Stop audio' : '🎧 Listen'}
+          </button>
+        )}
         <div className="tut-progress" aria-label={`Step ${i + 1} of ${STEPS.length}`}>
           {STEPS.map((_, n) => (
             <button
@@ -503,6 +628,7 @@ export function Tutorial() {
         <section className="glass tut-text">
           <div className="tut-step">
             Step {i + 1} of {STEPS.length}
+            {listening && <span className="tut-speaking"> · 🔊 narrating</span>}
           </div>
           <h2>{step.title}</h2>
           {step.body}
